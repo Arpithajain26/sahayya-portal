@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -7,7 +7,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "sonner";
-import { Loader2, Upload, X } from "lucide-react";
+import { Loader2, Upload, X, Mic, StopCircle } from "lucide-react";
 
 const CATEGORIES = [
   { value: "infrastructure", label: "Infrastructure" },
@@ -31,6 +31,10 @@ export default function ComplaintForm({ onSuccess }: ComplaintFormProps) {
   const [location, setLocation] = useState("");
   const [image, setImage] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [isRecording, setIsRecording] = useState(false);
+  const [isTranscribing, setIsTranscribing] = useState(false);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const audioChunksRef = useRef<Blob[]>([]);
 
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -51,6 +55,80 @@ export default function ComplaintForm({ onSuccess }: ComplaintFormProps) {
   const clearImage = () => {
     setImage(null);
     setImagePreview(null);
+  };
+
+  const startRecording = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const mediaRecorder = new MediaRecorder(stream, {
+        mimeType: 'audio/webm',
+      });
+
+      audioChunksRef.current = [];
+
+      mediaRecorder.ondataavailable = (event) => {
+        if (event.data.size > 0) {
+          audioChunksRef.current.push(event.data);
+        }
+      };
+
+      mediaRecorder.onstop = async () => {
+        const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
+        await transcribeAudio(audioBlob);
+        
+        // Stop all tracks
+        stream.getTracks().forEach(track => track.stop());
+      };
+
+      mediaRecorderRef.current = mediaRecorder;
+      mediaRecorder.start();
+      setIsRecording(true);
+      toast.success("Recording started");
+    } catch (error) {
+      console.error('Error starting recording:', error);
+      toast.error("Failed to start recording. Please check microphone permissions.");
+    }
+  };
+
+  const stopRecording = () => {
+    if (mediaRecorderRef.current && isRecording) {
+      mediaRecorderRef.current.stop();
+      setIsRecording(false);
+      toast.info("Processing audio...");
+    }
+  };
+
+  const transcribeAudio = async (audioBlob: Blob) => {
+    setIsTranscribing(true);
+    try {
+      // Convert blob to base64
+      const reader = new FileReader();
+      reader.readAsDataURL(audioBlob);
+      
+      await new Promise((resolve) => {
+        reader.onloadend = resolve;
+      });
+
+      const base64Audio = (reader.result as string).split(',')[1];
+
+      // Send to speech-to-text function
+      const { data, error } = await supabase.functions.invoke('speech-to-text', {
+        body: { audio: base64Audio }
+      });
+
+      if (error) throw error;
+
+      if (data?.text) {
+        // Append transcribed text to description
+        setDescription(prev => prev ? `${prev}\n\n${data.text}` : data.text);
+        toast.success("Audio transcribed successfully!");
+      }
+    } catch (error) {
+      console.error('Error transcribing audio:', error);
+      toast.error("Failed to transcribe audio. Please try again.");
+    } finally {
+      setIsTranscribing(false);
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -165,10 +243,37 @@ export default function ComplaintForm({ onSuccess }: ComplaintFormProps) {
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="description">Description *</Label>
+            <div className="flex items-center justify-between">
+              <Label htmlFor="description">Description *</Label>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={isRecording ? stopRecording : startRecording}
+                disabled={isTranscribing}
+                className="gap-2"
+              >
+                {isRecording ? (
+                  <>
+                    <StopCircle className="h-4 w-4 animate-pulse text-red-500" />
+                    Stop Recording
+                  </>
+                ) : isTranscribing ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Transcribing...
+                  </>
+                ) : (
+                  <>
+                    <Mic className="h-4 w-4" />
+                    Record Audio
+                  </>
+                )}
+              </Button>
+            </div>
             <Textarea
               id="description"
-              placeholder="Provide detailed information about your complaint..."
+              placeholder="Type or record your complaint..."
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               required
