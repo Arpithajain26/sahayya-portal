@@ -1,13 +1,25 @@
-import { useState, useRef } from "react";
+import React, { useState, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { toast } from "sonner";
-import { Loader2, Upload, X, Mic, StopCircle } from "lucide-react";
+import { Loader2, Upload, X, Mic, StopCircle, Volume2 } from "lucide-react";
 
 const CATEGORIES = [
   { value: "infrastructure", label: "Infrastructure" },
@@ -33,6 +45,9 @@ export default function ComplaintForm({ onSuccess }: ComplaintFormProps) {
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [isRecording, setIsRecording] = useState(false);
   const mediaRecorderRef = useRef<any>(null);
+  const mediaStreamRef = useRef<MediaStream | null>(null);
+  const audioPlayingRef = useRef<HTMLAudioElement | null>(null);
+  const [ttsLoading, setTtsLoading] = useState(false);
 
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -55,73 +70,264 @@ export default function ComplaintForm({ onSuccess }: ComplaintFormProps) {
     setImagePreview(null);
   };
 
-  const startRecording = () => {
+  const startRecording = async () => {
     try {
-      // Check if browser supports Web Speech API
-      const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-      
-      if (!SpeechRecognition) {
-        toast.error("Speech recognition is not supported in your browser. Please try Chrome or Edge.");
+      // Prefer Web Speech API (live recognition) when available
+      const SpeechRecognition =
+        (window as any).SpeechRecognition ||
+        (window as any).webkitSpeechRecognition;
+
+      if (SpeechRecognition) {
+        const recognition = new SpeechRecognition();
+        recognition.continuous = true;
+        recognition.interimResults = true;
+        recognition.lang = "en-US";
+
+        recognition.onstart = () => {
+          setIsRecording(true);
+          toast.success("Recording started - speak now");
+        };
+
+        recognition.onresult = (event: any) => {
+          let interimTranscript = "";
+          let finalTranscript = "";
+
+          for (let i = event.resultIndex; i < event.results.length; i++) {
+            const transcript = event.results[i][0].transcript;
+            if (event.results[i].isFinal) {
+              finalTranscript += transcript + " ";
+            } else {
+              interimTranscript += transcript;
+            }
+          }
+
+          if (finalTranscript) {
+            setDescription((prev) =>
+              prev ? `${prev} ${finalTranscript}` : finalTranscript
+            );
+          }
+        };
+
+        recognition.onerror = (event: any) => {
+          console.error("Speech recognition error:", event.error);
+          setIsRecording(false);
+          if (event.error === "no-speech") {
+            toast.error("No speech detected. Please try again.");
+          } else if (event.error === "not-allowed") {
+            toast.error(
+              "Microphone access denied. Please allow microphone permissions."
+            );
+          } else {
+            toast.error("Speech recognition error. Please try again.");
+          }
+        };
+
+        recognition.onend = () => {
+          setIsRecording(false);
+          toast.success("Recording stopped");
+        };
+
+        mediaRecorderRef.current = recognition;
+        recognition.start();
         return;
       }
 
-      const recognition = new SpeechRecognition();
-      recognition.continuous = true;
-      recognition.interimResults = true;
-      recognition.lang = 'en-US';
+      // Fallback: use MediaRecorder to record audio and send to server for transcription
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        toast.error("Audio capture not supported in this browser.");
+        return;
+      }
 
-      recognition.onstart = () => {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      mediaStreamRef.current = stream;
+      const options: MediaRecorderOptions = { mimeType: "audio/webm" };
+      const recorder = new MediaRecorder(stream, options as any);
+      const chunks: Blob[] = [];
+
+      recorder.ondataavailable = (e) => {
+        if (e.data && e.data.size > 0) chunks.push(e.data);
+      };
+
+      recorder.onstart = () => {
+        mediaRecorderRef.current = recorder;
         setIsRecording(true);
         toast.success("Recording started - speak now");
       };
 
-      recognition.onresult = (event: any) => {
-        let interimTranscript = '';
-        let finalTranscript = '';
-
-        for (let i = event.resultIndex; i < event.results.length; i++) {
-          const transcript = event.results[i][0].transcript;
-          if (event.results[i].isFinal) {
-            finalTranscript += transcript + ' ';
-          } else {
-            interimTranscript += transcript;
-          }
-        }
-
-        if (finalTranscript) {
-          setDescription(prev => prev ? `${prev} ${finalTranscript}` : finalTranscript);
-        }
-      };
-
-      recognition.onerror = (event: any) => {
-        console.error('Speech recognition error:', event.error);
-        setIsRecording(false);
-        if (event.error === 'no-speech') {
-          toast.error("No speech detected. Please try again.");
-        } else if (event.error === 'not-allowed') {
-          toast.error("Microphone access denied. Please allow microphone permissions.");
-        } else {
-          toast.error("Speech recognition error. Please try again.");
-        }
-      };
-
-      recognition.onend = () => {
+      recorder.onstop = async () => {
         setIsRecording(false);
         toast.success("Recording stopped");
+
+        try {
+          const blob = new Blob(chunks, { type: "audio/webm" });
+          // convert to base64 without data: prefix
+          const base64 = await new Promise<string>((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onloadend = () => {
+              const dataUrl = reader.result as string;
+              const commaIndex = dataUrl.indexOf(",");
+              resolve(dataUrl.slice(commaIndex + 1));
+            };
+            reader.onerror = reject;
+            reader.readAsDataURL(blob);
+          });
+
+          // send to speech-to-text supabase function
+          toast.success("Sending audio for transcription...");
+          const { data, error } = await supabase.functions.invoke(
+            "speech-to-text",
+            {
+              body: { audio: base64 },
+            } as any
+          );
+
+          if (error) {
+            console.error("STT function error:", error);
+            toast.error("Failed to transcribe audio");
+          } else if (data?.text) {
+            setDescription((prev) =>
+              prev ? `${prev} ${data.text}` : data.text
+            );
+          } else if (data) {
+            // sometimes supabase returns parsed JSON in data
+            const parsed = data as any;
+            if (parsed?.text)
+              setDescription((prev) =>
+                prev ? `${prev} ${parsed.text}` : parsed.text
+              );
+            else if (parsed?.message)
+              setDescription((prev) =>
+                prev ? `${prev} ${parsed.message}` : parsed.message
+              );
+          }
+        } catch (err) {
+          console.error("Error processing recorded audio:", err);
+          toast.error("Error processing recorded audio");
+        } finally {
+          // stop tracks
+          if (mediaStreamRef.current) {
+            mediaStreamRef.current.getTracks().forEach((t) => t.stop());
+            mediaStreamRef.current = null;
+          }
+          mediaRecorderRef.current = null;
+        }
       };
 
-      mediaRecorderRef.current = recognition;
-      recognition.start();
+      recorder.start();
     } catch (error) {
-      console.error('Error starting recording:', error);
-      toast.error("Failed to start recording. Please check microphone permissions.");
+      console.error("Error starting recording:", error);
+      toast.error(
+        "Failed to start recording. Please check microphone permissions."
+      );
     }
   };
 
   const stopRecording = () => {
-    if (mediaRecorderRef.current && isRecording) {
-      mediaRecorderRef.current.stop();
+    try {
+      if (mediaRecorderRef.current && isRecording) {
+        // If SpeechRecognition instance
+        const mr = mediaRecorderRef.current;
+        if (
+          typeof mr.stop === "function" &&
+          mr.state !== undefined &&
+          (mr.state === "recording" || mr.state === "paused")
+        ) {
+          mr.stop();
+        } else if (typeof mr.stop === "function") {
+          // SpeechRecognition also has stop()
+          mr.stop();
+        } else {
+          // best-effort
+          mr.stop && mr.stop();
+        }
+        setIsRecording(false);
+      }
+
+      if (mediaStreamRef.current) {
+        mediaStreamRef.current.getTracks().forEach((t) => t.stop());
+        mediaStreamRef.current = null;
+      }
+    } catch (err) {
+      console.error("Error stopping recording", err);
       setIsRecording(false);
+    }
+  };
+
+  // Play audio from base64 returned by text-to-speech function
+  const playBase64Audio = async (base64: string, mime = "audio/mpeg") => {
+    try {
+      const binary = atob(base64);
+      const len = binary.length;
+      const bytes = new Uint8Array(len);
+      for (let i = 0; i < len; i++) bytes[i] = binary.charCodeAt(i);
+      const blob = new Blob([bytes], { type: mime });
+      const url = URL.createObjectURL(blob);
+      if (audioPlayingRef.current) {
+        audioPlayingRef.current.pause();
+        audioPlayingRef.current.src = "";
+      }
+      const audio = new Audio(url);
+      audioPlayingRef.current = audio;
+      audio.onended = () => {
+        URL.revokeObjectURL(url);
+        audioPlayingRef.current = null;
+      };
+      await audio.play();
+    } catch (err) {
+      console.error("Error playing audio:", err);
+      toast.error("Failed to play audio");
+    }
+  };
+
+  // Translate description to Kannada and play via text-to-speech function
+  const playKannada = async () => {
+    if (!description) {
+      toast.error("Nothing to translate/play");
+      return;
+    }
+    setTtsLoading(true);
+    try {
+      // Translate first
+      const { data: translationData, error: translationError } =
+        await supabase.functions.invoke("translate-text", {
+          body: { text: description, targetLanguage: "Kannada" },
+        } as any);
+
+      let kannadaText = null;
+      if (translationError) {
+        console.error("Translation error:", translationError);
+      } else if (translationData?.translatedText) {
+        kannadaText = translationData.translatedText;
+      } else if (translationData) {
+        const parsed = translationData as any;
+        kannadaText =
+          parsed?.translatedText || parsed?.translated || parsed?.text || null;
+      }
+
+      const textToSpeak = kannadaText || description;
+
+      // Request TTS
+      const { data: ttsData, error: ttsError } =
+        await supabase.functions.invoke("text-to-speech", {
+          body: { text: textToSpeak, language: "kannada" },
+        } as any);
+
+      if (ttsError) {
+        console.error("TTS function error:", ttsError);
+        toast.error("Failed to generate speech");
+      } else if (ttsData?.audioContent) {
+        await playBase64Audio(ttsData.audioContent, "audio/mpeg");
+      } else if (ttsData) {
+        const parsed = ttsData as any;
+        if (parsed?.audioContent)
+          await playBase64Audio(parsed.audioContent, "audio/mpeg");
+        else toast.error("No audio returned from TTS");
+      }
+    } catch (err) {
+      console.error("playKannada error:", err);
+      toast.error("Failed to play Kannada audio");
+    } finally {
+      setTtsLoading(false);
     }
   };
 
@@ -130,9 +336,9 @@ export default function ComplaintForm({ onSuccess }: ComplaintFormProps) {
     setLoading(true);
 
     try {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
+      // Get authenticated user from session (getSession is safe with current supabase-js types)
+      const { data: sessionData } = await supabase.auth.getSession();
+      const user = sessionData?.session?.user;
       if (!user) throw new Error("Not authenticated");
 
       let imageUrl = null;
@@ -155,12 +361,10 @@ export default function ComplaintForm({ onSuccess }: ComplaintFormProps) {
 
       // Translate to Kannada
       const complaintText = `${title}\n\n${description}`;
-      const { data: translationData, error: translationError } = await supabase.functions.invoke(
-        'translate-text',
-        {
-          body: { text: complaintText, targetLanguage: 'Kannada' }
-        }
-      );
+      const { data: translationData, error: translationError } =
+        await supabase.functions.invoke("translate-text", {
+          body: { text: complaintText, targetLanguage: "Kannada" },
+        });
 
       let kannadaTranslation = null;
       if (!translationError && translationData?.translatedText) {
@@ -183,7 +387,7 @@ export default function ComplaintForm({ onSuccess }: ComplaintFormProps) {
       if (error) throw error;
 
       toast.success("Complaint submitted and translated successfully!");
-      
+
       // Reset form
       setCategory("");
       setTitle("");
@@ -203,7 +407,8 @@ export default function ComplaintForm({ onSuccess }: ComplaintFormProps) {
       <CardHeader>
         <CardTitle>Submit New Complaint</CardTitle>
         <CardDescription>
-          Fill in the details below to submit your grievance. All fields marked with * are required.
+          Fill in the details below to submit your grievance. All fields marked
+          with * are required.
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -239,25 +444,48 @@ export default function ComplaintForm({ onSuccess }: ComplaintFormProps) {
           <div className="space-y-2">
             <div className="flex items-center justify-between">
               <Label htmlFor="description">Description *</Label>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={isRecording ? stopRecording : startRecording}
-                className="gap-2"
-              >
-                {isRecording ? (
-                  <>
-                    <StopCircle className="h-4 w-4 animate-pulse text-red-500" />
-                    Stop Recording
-                  </>
-                ) : (
-                  <>
-                    <Mic className="h-4 w-4" />
-                    Record Audio
-                  </>
-                )}
-              </Button>
+              <div className="flex gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={isRecording ? stopRecording : startRecording}
+                  className="gap-2"
+                >
+                  {isRecording ? (
+                    <>
+                      <StopCircle className="h-4 w-4 animate-pulse text-red-500" />
+                      Stop Recording
+                    </>
+                  ) : (
+                    <>
+                      <Mic className="h-4 w-4" />
+                      Record Audio
+                    </>
+                  )}
+                </Button>
+
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={playKannada}
+                  disabled={ttsLoading || !description}
+                  className="gap-2"
+                >
+                  {ttsLoading ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Playing...
+                    </>
+                  ) : (
+                    <>
+                      <Volume2 className="h-4 w-4" />
+                      Play Kannada
+                    </>
+                  )}
+                </Button>
+              </div>
             </div>
             <Textarea
               id="description"
