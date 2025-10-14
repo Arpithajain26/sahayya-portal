@@ -32,9 +32,7 @@ export default function ComplaintForm({ onSuccess }: ComplaintFormProps) {
   const [image, setImage] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [isRecording, setIsRecording] = useState(false);
-  const [isTranscribing, setIsTranscribing] = useState(false);
-  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
-  const audioChunksRef = useRef<Blob[]>([]);
+  const mediaRecorderRef = useRef<any>(null);
 
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -57,33 +55,63 @@ export default function ComplaintForm({ onSuccess }: ComplaintFormProps) {
     setImagePreview(null);
   };
 
-  const startRecording = async () => {
+  const startRecording = () => {
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const mediaRecorder = new MediaRecorder(stream, {
-        mimeType: 'audio/webm',
-      });
+      // Check if browser supports Web Speech API
+      const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+      
+      if (!SpeechRecognition) {
+        toast.error("Speech recognition is not supported in your browser. Please try Chrome or Edge.");
+        return;
+      }
 
-      audioChunksRef.current = [];
+      const recognition = new SpeechRecognition();
+      recognition.continuous = true;
+      recognition.interimResults = true;
+      recognition.lang = 'en-US';
 
-      mediaRecorder.ondataavailable = (event) => {
-        if (event.data.size > 0) {
-          audioChunksRef.current.push(event.data);
+      recognition.onstart = () => {
+        setIsRecording(true);
+        toast.success("Recording started - speak now");
+      };
+
+      recognition.onresult = (event: any) => {
+        let interimTranscript = '';
+        let finalTranscript = '';
+
+        for (let i = event.resultIndex; i < event.results.length; i++) {
+          const transcript = event.results[i][0].transcript;
+          if (event.results[i].isFinal) {
+            finalTranscript += transcript + ' ';
+          } else {
+            interimTranscript += transcript;
+          }
+        }
+
+        if (finalTranscript) {
+          setDescription(prev => prev ? `${prev} ${finalTranscript}` : finalTranscript);
         }
       };
 
-      mediaRecorder.onstop = async () => {
-        const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
-        await transcribeAudio(audioBlob);
-        
-        // Stop all tracks
-        stream.getTracks().forEach(track => track.stop());
+      recognition.onerror = (event: any) => {
+        console.error('Speech recognition error:', event.error);
+        setIsRecording(false);
+        if (event.error === 'no-speech') {
+          toast.error("No speech detected. Please try again.");
+        } else if (event.error === 'not-allowed') {
+          toast.error("Microphone access denied. Please allow microphone permissions.");
+        } else {
+          toast.error("Speech recognition error. Please try again.");
+        }
       };
 
-      mediaRecorderRef.current = mediaRecorder;
-      mediaRecorder.start();
-      setIsRecording(true);
-      toast.success("Recording started");
+      recognition.onend = () => {
+        setIsRecording(false);
+        toast.success("Recording stopped");
+      };
+
+      mediaRecorderRef.current = recognition;
+      recognition.start();
     } catch (error) {
       console.error('Error starting recording:', error);
       toast.error("Failed to start recording. Please check microphone permissions.");
@@ -94,40 +122,6 @@ export default function ComplaintForm({ onSuccess }: ComplaintFormProps) {
     if (mediaRecorderRef.current && isRecording) {
       mediaRecorderRef.current.stop();
       setIsRecording(false);
-      toast.info("Processing audio...");
-    }
-  };
-
-  const transcribeAudio = async (audioBlob: Blob) => {
-    setIsTranscribing(true);
-    try {
-      // Convert blob to base64
-      const reader = new FileReader();
-      reader.readAsDataURL(audioBlob);
-      
-      await new Promise((resolve) => {
-        reader.onloadend = resolve;
-      });
-
-      const base64Audio = (reader.result as string).split(',')[1];
-
-      // Send to speech-to-text function
-      const { data, error } = await supabase.functions.invoke('speech-to-text', {
-        body: { audio: base64Audio }
-      });
-
-      if (error) throw error;
-
-      if (data?.text) {
-        // Append transcribed text to description
-        setDescription(prev => prev ? `${prev}\n\n${data.text}` : data.text);
-        toast.success("Audio transcribed successfully!");
-      }
-    } catch (error) {
-      console.error('Error transcribing audio:', error);
-      toast.error("Failed to transcribe audio. Please try again.");
-    } finally {
-      setIsTranscribing(false);
     }
   };
 
@@ -250,18 +244,12 @@ export default function ComplaintForm({ onSuccess }: ComplaintFormProps) {
                 variant="outline"
                 size="sm"
                 onClick={isRecording ? stopRecording : startRecording}
-                disabled={isTranscribing}
                 className="gap-2"
               >
                 {isRecording ? (
                   <>
                     <StopCircle className="h-4 w-4 animate-pulse text-red-500" />
                     Stop Recording
-                  </>
-                ) : isTranscribing ? (
-                  <>
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                    Transcribing...
                   </>
                 ) : (
                   <>
