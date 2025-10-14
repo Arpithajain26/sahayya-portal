@@ -81,6 +81,20 @@ export default function ComplaintForm({ onSuccess }: ComplaintFormProps) {
         imageUrl = publicUrl;
       }
 
+      // Translate to Kannada
+      const complaintText = `${title}\n\n${description}`;
+      const { data: translationData, error: translationError } = await supabase.functions.invoke(
+        'translate-text',
+        {
+          body: { text: complaintText, targetLanguage: 'Kannada' }
+        }
+      );
+
+      let kannadaTranslation = null;
+      if (!translationError && translationData?.translatedText) {
+        kannadaTranslation = translationData.translatedText;
+      }
+
       // Insert complaint
       const { error } = await supabase.from("complaints").insert([
         {
@@ -90,12 +104,13 @@ export default function ComplaintForm({ onSuccess }: ComplaintFormProps) {
           description,
           location: location || null,
           image_url: imageUrl,
+          kannada_translation: kannadaTranslation,
         },
       ]);
 
       if (error) throw error;
 
-      toast.success("Complaint submitted successfully!");
+      toast.success("Complaint submitted and translated successfully!");
       
       // Reset form
       setCategory("");

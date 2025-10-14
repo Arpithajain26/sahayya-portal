@@ -1,7 +1,11 @@
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardFooter, CardHeader } from "@/components/ui/card";
-import { Calendar, MapPin, Image as ImageIcon } from "lucide-react";
+import { Calendar, MapPin, Image as ImageIcon, Languages, Volume2 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
+import { useState } from "react";
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
 
 interface Complaint {
   id: string;
@@ -10,6 +14,7 @@ interface Complaint {
   description: string;
   location?: string;
   image_url?: string;
+  kannada_translation?: string;
   status: "submitted" | "in_review" | "resolved";
   created_at: string;
 }
@@ -36,6 +41,42 @@ const statusConfig = {
 
 export default function ComplaintCard({ complaint, onClick }: ComplaintCardProps) {
   const status = statusConfig[complaint.status];
+  const [showKannada, setShowKannada] = useState(false);
+  const [isPlaying, setIsPlaying] = useState(false);
+
+  const playAudio = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    try {
+      setIsPlaying(true);
+      const textToSpeak = showKannada && complaint.kannada_translation 
+        ? complaint.kannada_translation 
+        : `${complaint.title}. ${complaint.description}`;
+      
+      const language = showKannada && complaint.kannada_translation ? 'kannada' : 'en';
+      
+      const { data, error } = await supabase.functions.invoke('text-to-speech', {
+        body: { text: textToSpeak, language }
+      });
+
+      if (error) throw error;
+
+      if (data?.audioContent) {
+        const audio = new Audio(`data:audio/mp3;base64,${data.audioContent}`);
+        audio.onended = () => setIsPlaying(false);
+        audio.onerror = () => setIsPlaying(false);
+        await audio.play();
+      }
+    } catch (error) {
+      console.error('Error playing audio:', error);
+      toast.error("Failed to play audio. Please try again.");
+      setIsPlaying(false);
+    }
+  };
+
+  const toggleLanguage = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setShowKannada(!showKannada);
+  };
 
   return (
     <Card
@@ -54,9 +95,33 @@ export default function ComplaintCard({ complaint, onClick }: ComplaintCardProps
         </div>
       </CardHeader>
 
-      <CardContent className="pb-3">
+      <CardContent className="pb-3 space-y-3">
+        {complaint.kannada_translation && (
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={toggleLanguage}
+            >
+              <Languages className="h-4 w-4 mr-1" />
+              {showKannada ? 'English' : 'ಕನ್ನಡ'}
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={playAudio}
+              disabled={isPlaying}
+            >
+              <Volume2 className="h-4 w-4 mr-1" />
+              {isPlaying ? 'Playing...' : 'Listen'}
+            </Button>
+          </div>
+        )}
+
         <p className="text-sm text-muted-foreground line-clamp-2">
-          {complaint.description}
+          {showKannada && complaint.kannada_translation 
+            ? complaint.kannada_translation 
+            : complaint.description}
         </p>
 
         {complaint.image_url && (
