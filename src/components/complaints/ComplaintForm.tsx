@@ -48,6 +48,16 @@ export default function ComplaintForm({ onSuccess }: ComplaintFormProps) {
   const mediaStreamRef = useRef<MediaStream | null>(null);
   const audioPlayingRef = useRef<HTMLAudioElement | null>(null);
   const [ttsLoading, setTtsLoading] = useState(false);
+  const [selectedLanguage, setSelectedLanguage] = useState("kannada");
+
+  const TRANSLATION_LANGUAGES = [
+    { value: "english", label: "English" },
+    { value: "kannada", label: "Kannada" },
+    { value: "hindi", label: "Hindi" },
+    { value: "tulu", label: "Tulu" },
+    { value: "tamil", label: "Tamil" },
+    { value: "telugu", label: "Telugu" },
+  ];
 
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -279,37 +289,42 @@ export default function ComplaintForm({ onSuccess }: ComplaintFormProps) {
     }
   };
 
-  // Translate description to Kannada and play via text-to-speech function
-  const playKannada = async () => {
+  // Translate description and play via text-to-speech function
+  const playTranslation = async () => {
     if (!description) {
       toast.error("Nothing to translate/play");
       return;
     }
     setTtsLoading(true);
     try {
-      // Translate first
-      const { data: translationData, error: translationError } =
-        await supabase.functions.invoke("translate-text", {
-          body: { text: description, targetLanguage: "Kannada" },
-        } as any);
+      const languageLabel = TRANSLATION_LANGUAGES.find(
+        (lang) => lang.value === selectedLanguage
+      )?.label || "English";
 
-      let kannadaText = null;
-      if (translationError) {
-        console.error("Translation error:", translationError);
-      } else if (translationData?.translatedText) {
-        kannadaText = translationData.translatedText;
-      } else if (translationData) {
-        const parsed = translationData as any;
-        kannadaText =
-          parsed?.translatedText || parsed?.translated || parsed?.text || null;
+      // Translate first (skip if English)
+      let translatedText = description;
+      if (selectedLanguage !== "english") {
+        const { data: translationData, error: translationError } =
+          await supabase.functions.invoke("translate-text", {
+            body: { text: description, targetLanguage: languageLabel },
+          } as any);
+
+        if (translationError) {
+          console.error("Translation error:", translationError);
+          toast.error("Translation failed, playing original text");
+        } else if (translationData?.translatedText) {
+          translatedText = translationData.translatedText;
+        } else if (translationData) {
+          const parsed = translationData as any;
+          translatedText =
+            parsed?.translatedText || parsed?.translated || parsed?.text || description;
+        }
       }
-
-      const textToSpeak = kannadaText || description;
 
       // Request TTS
       const { data: ttsData, error: ttsError } =
         await supabase.functions.invoke("text-to-speech", {
-          body: { text: textToSpeak, language: "kannada" },
+          body: { text: translatedText, language: selectedLanguage },
         } as any);
 
       if (ttsError) {
@@ -317,15 +332,19 @@ export default function ComplaintForm({ onSuccess }: ComplaintFormProps) {
         toast.error("Failed to generate speech");
       } else if (ttsData?.audioContent) {
         await playBase64Audio(ttsData.audioContent, "audio/mpeg");
+        toast.success(`Playing in ${languageLabel}`);
       } else if (ttsData) {
         const parsed = ttsData as any;
-        if (parsed?.audioContent)
+        if (parsed?.audioContent) {
           await playBase64Audio(parsed.audioContent, "audio/mpeg");
-        else toast.error("No audio returned from TTS");
+          toast.success(`Playing in ${languageLabel}`);
+        } else {
+          toast.error("No audio returned from TTS");
+        }
       }
     } catch (err) {
-      console.error("playKannada error:", err);
-      toast.error("Failed to play Kannada audio");
+      console.error("playTranslation error:", err);
+      toast.error("Failed to play audio");
     } finally {
       setTtsLoading(false);
     }
@@ -464,27 +483,6 @@ export default function ComplaintForm({ onSuccess }: ComplaintFormProps) {
                     </>
                   )}
                 </Button>
-
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={playKannada}
-                  disabled={ttsLoading || !description}
-                  className="gap-2"
-                >
-                  {ttsLoading ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Playing...
-                    </>
-                  ) : (
-                    <>
-                      <Volume2 className="h-4 w-4" />
-                      Play Kannada
-                    </>
-                  )}
-                </Button>
               </div>
             </div>
             <Textarea
@@ -499,6 +497,48 @@ export default function ComplaintForm({ onSuccess }: ComplaintFormProps) {
             <p className="text-xs text-muted-foreground text-right">
               {description.length}/1000
             </p>
+
+            {/* Translation and Audio Playback */}
+            {description && (
+              <div className="flex gap-2 items-center pt-2">
+                <Label className="text-sm">Translate to:</Label>
+                <Select
+                  value={selectedLanguage}
+                  onValueChange={setSelectedLanguage}
+                >
+                  <SelectTrigger className="w-[140px]">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {TRANSLATION_LANGUAGES.map((lang) => (
+                      <SelectItem key={lang.value} value={lang.value}>
+                        {lang.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={playTranslation}
+                  disabled={ttsLoading}
+                  className="gap-2"
+                >
+                  {ttsLoading ? (
+                    <>
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      Playing...
+                    </>
+                  ) : (
+                    <>
+                      <Volume2 className="h-4 w-4" />
+                      Play Audio
+                    </>
+                  )}
+                </Button>
+              </div>
+            )}
           </div>
 
           <div className="space-y-2">
