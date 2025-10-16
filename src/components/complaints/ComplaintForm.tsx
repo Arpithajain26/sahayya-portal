@@ -461,9 +461,9 @@ export default function ComplaintForm({ onSuccess }: ComplaintFormProps) {
           </div>
 
           <div className="space-y-2">
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between flex-wrap gap-2">
               <Label htmlFor="description">Description *</Label>
-              <div className="flex gap-2">
+              <div className="flex gap-2 items-center flex-wrap">
                 <Button
                   type="button"
                   variant="outline"
@@ -483,6 +483,46 @@ export default function ComplaintForm({ onSuccess }: ComplaintFormProps) {
                     </>
                   )}
                 </Button>
+
+                {description && (
+                  <>
+                    <Select
+                      value={selectedLanguage}
+                      onValueChange={setSelectedLanguage}
+                    >
+                      <SelectTrigger className="w-[140px] h-9">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {TRANSLATION_LANGUAGES.map((lang) => (
+                          <SelectItem key={lang.value} value={lang.value}>
+                            {lang.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={playTranslation}
+                      disabled={ttsLoading}
+                      className="gap-2"
+                    >
+                      {ttsLoading ? (
+                        <>
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                          Playing...
+                        </>
+                      ) : (
+                        <>
+                          <Volume2 className="h-4 w-4" />
+                          Play Audio
+                        </>
+                      )}
+                    </Button>
+                  </>
+                )}
               </div>
             </div>
             <Textarea
@@ -497,48 +537,6 @@ export default function ComplaintForm({ onSuccess }: ComplaintFormProps) {
             <p className="text-xs text-muted-foreground text-right">
               {description.length}/1000
             </p>
-
-            {/* Translation and Audio Playback */}
-            {description && (
-              <div className="flex gap-2 items-center pt-2">
-                <Label className="text-sm">Translate to:</Label>
-                <Select
-                  value={selectedLanguage}
-                  onValueChange={setSelectedLanguage}
-                >
-                  <SelectTrigger className="w-[140px]">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {TRANSLATION_LANGUAGES.map((lang) => (
-                      <SelectItem key={lang.value} value={lang.value}>
-                        {lang.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={playTranslation}
-                  disabled={ttsLoading}
-                  className="gap-2"
-                >
-                  {ttsLoading ? (
-                    <>
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                      Playing...
-                    </>
-                  ) : (
-                    <>
-                      <Volume2 className="h-4 w-4" />
-                      Play Audio
-                    </>
-                  )}
-                </Button>
-              </div>
-            )}
           </div>
 
           <div className="space-y-2">
