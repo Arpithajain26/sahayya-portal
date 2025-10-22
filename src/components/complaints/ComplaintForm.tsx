@@ -88,10 +88,19 @@ export default function ComplaintForm({ onSuccess }: ComplaintFormProps) {
         (window as any).webkitSpeechRecognition;
 
       if (SpeechRecognition) {
+        const languageCodeMap: Record<string, string> = {
+          english: "en-US",
+          kannada: "kn-IN",
+          hindi: "hi-IN",
+          tulu: "en-US", // Tulu not widely supported, fallback to English
+          tamil: "ta-IN",
+          telugu: "te-IN",
+        };
+
         const recognition = new SpeechRecognition();
         recognition.continuous = true;
         recognition.interimResults = true;
-        recognition.lang = "en-US";
+        recognition.lang = languageCodeMap[selectedLanguage] || "en-US";
 
         recognition.onstart = () => {
           setIsRecording(true);
@@ -464,6 +473,21 @@ export default function ComplaintForm({ onSuccess }: ComplaintFormProps) {
             <div className="flex items-center justify-between flex-wrap gap-2">
               <Label htmlFor="description">Description *</Label>
               <div className="flex gap-2 items-center flex-wrap">
+                <Select
+                  value={selectedLanguage}
+                  onValueChange={setSelectedLanguage}
+                >
+                  <SelectTrigger className="w-[140px] h-9">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {TRANSLATION_LANGUAGES.map((lang) => (
+                      <SelectItem key={lang.value} value={lang.value}>
+                        {lang.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
                 <Button
                   type="button"
                   variant="outline"
@@ -485,43 +509,26 @@ export default function ComplaintForm({ onSuccess }: ComplaintFormProps) {
                 </Button>
 
                 {description && (
-                  <>
-                    <Select
-                      value={selectedLanguage}
-                      onValueChange={setSelectedLanguage}
-                    >
-                      <SelectTrigger className="w-[140px] h-9">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {TRANSLATION_LANGUAGES.map((lang) => (
-                          <SelectItem key={lang.value} value={lang.value}>
-                            {lang.label}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      onClick={playTranslation}
-                      disabled={ttsLoading}
-                      className="gap-2"
-                    >
-                      {ttsLoading ? (
-                        <>
-                          <Loader2 className="h-4 w-4 animate-spin" />
-                          Playing...
-                        </>
-                      ) : (
-                        <>
-                          <Volume2 className="h-4 w-4" />
-                          Play Audio
-                        </>
-                      )}
-                    </Button>
-                  </>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={playTranslation}
+                    disabled={ttsLoading}
+                    className="gap-2"
+                  >
+                    {ttsLoading ? (
+                      <>
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        Playing...
+                      </>
+                    ) : (
+                      <>
+                        <Volume2 className="h-4 w-4" />
+                        Play Audio
+                      </>
+                    )}
+                  </Button>
                 )}
               </div>
             </div>
