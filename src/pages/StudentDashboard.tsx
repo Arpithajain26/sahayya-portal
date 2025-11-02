@@ -16,6 +16,7 @@ export default function StudentDashboard() {
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [selectedComplaint, setSelectedComplaint] = useState<any>(null);
+  const [isAdmin, setIsAdmin] = useState(false);
 
   useEffect(() => {
     checkAuth();
@@ -30,6 +31,16 @@ export default function StudentDashboard() {
       navigate("/auth");
     } else {
       setUser(user);
+
+      // Check if user is admin
+      const { data: roleData } = await supabase
+        .from("user_roles")
+        .select("role")
+        .eq("user_id", user.id)
+        .eq("role", "admin")
+        .maybeSingle();
+
+      setIsAdmin(!!roleData);
     }
   };
 
@@ -72,6 +83,11 @@ export default function StudentDashboard() {
             </p>
           </div>
           <div className="flex items-center gap-2">
+            {isAdmin && (
+              <Button variant="default" onClick={() => navigate("/admin")}>
+                Admin Dashboard
+              </Button>
+            )}
             <Button variant="ghost" size="icon" onClick={fetchComplaints}>
               <RefreshCw className="h-4 w-4" />
             </Button>

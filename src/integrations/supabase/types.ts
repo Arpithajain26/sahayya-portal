@@ -14,6 +14,38 @@ export type Database = {
   }
   public: {
     Tables: {
+      admin_feedback: {
+        Row: {
+          admin_id: string
+          complaint_id: string
+          created_at: string
+          feedback: string
+          id: string
+        }
+        Insert: {
+          admin_id: string
+          complaint_id: string
+          created_at?: string
+          feedback: string
+          id?: string
+        }
+        Update: {
+          admin_id?: string
+          complaint_id?: string
+          created_at?: string
+          feedback?: string
+          id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "admin_feedback_complaint_id_fkey"
+            columns: ["complaint_id"]
+            isOneToOne: false
+            referencedRelation: "complaints"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       complaint_updates: {
         Row: {
           complaint_id: string
@@ -57,7 +89,9 @@ export type Database = {
           assigned_to: string | null
           category: Database["public"]["Enums"]["complaint_category"]
           created_at: string
+          deadline: string | null
           description: string
+          feedback: string | null
           id: string
           image_url: string | null
           kannada_translation: string | null
@@ -74,7 +108,9 @@ export type Database = {
           assigned_to?: string | null
           category: Database["public"]["Enums"]["complaint_category"]
           created_at?: string
+          deadline?: string | null
           description: string
+          feedback?: string | null
           id?: string
           image_url?: string | null
           kannada_translation?: string | null
@@ -91,7 +127,9 @@ export type Database = {
           assigned_to?: string | null
           category?: Database["public"]["Enums"]["complaint_category"]
           created_at?: string
+          deadline?: string | null
           description?: string
+          feedback?: string | null
           id?: string
           image_url?: string | null
           kannada_translation?: string | null
