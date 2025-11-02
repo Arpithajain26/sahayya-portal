@@ -19,7 +19,8 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { toast } from "sonner";
-import { Loader2, Upload, X, Mic, StopCircle, Volume2 } from "lucide-react";
+import { Loader2, Upload, X, Mic, StopCircle, Volume2, Languages, ArrowRight } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
 
 const CATEGORIES = [
   { value: "infrastructure", label: "Infrastructure" },
@@ -49,6 +50,12 @@ export default function ComplaintForm({ onSuccess }: ComplaintFormProps) {
   const audioPlayingRef = useRef<HTMLAudioElement | null>(null);
   const [ttsLoading, setTtsLoading] = useState(false);
   const [selectedLanguage, setSelectedLanguage] = useState("kannada");
+  const [inputLanguage, setInputLanguage] = useState("auto");
+  const [outputLanguage, setOutputLanguage] = useState("english");
+  const [transliterationMode, setTransliterationMode] = useState<"transliterate" | "translate" | "both">("transliterate");
+  const [convertedText, setConvertedText] = useState("");
+  const [isConverting, setIsConverting] = useState(false);
+  const [showPreview, setShowPreview] = useState(false);
 
   const TRANSLATION_LANGUAGES = [
     { value: "english", label: "English" },
@@ -57,6 +64,12 @@ export default function ComplaintForm({ onSuccess }: ComplaintFormProps) {
     { value: "tulu", label: "Tulu" },
     { value: "tamil", label: "Tamil" },
     { value: "telugu", label: "Telugu" },
+    { value: "malayalam", label: "Malayalam" },
+  ];
+
+  const INPUT_LANGUAGES = [
+    { value: "auto", label: "Auto-Detect" },
+    ...TRANSLATION_LANGUAGES,
   ];
 
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -296,6 +309,58 @@ export default function ComplaintForm({ onSuccess }: ComplaintFormProps) {
       console.error("Error playing audio:", err);
       toast.error("Failed to play audio");
     }
+  };
+
+  // Convert text: transliterate and/or translate
+  const handleConvertText = async () => {
+    if (!description) {
+      toast.error("Please enter some text first");
+      return;
+    }
+
+    setIsConverting(true);
+    setShowPreview(true);
+
+    try {
+      const { data, error } = await supabase.functions.invoke("transliterate-text", {
+        body: {
+          text: description,
+          sourceLanguage: inputLanguage,
+          targetLanguage: outputLanguage,
+          mode: transliterationMode,
+        },
+      } as any);
+
+      if (error) {
+        console.error("Conversion error:", error);
+        toast.error("Conversion failed");
+        setShowPreview(false);
+      } else if (data?.convertedText) {
+        setConvertedText(data.convertedText);
+        
+        // If mode is "both", show both native script and translation
+        if (transliterationMode === "both" && data.nativeScript && data.translation) {
+          toast.success("Text converted and translated!");
+        } else if (transliterationMode === "transliterate") {
+          toast.success("Text transliterated to native script!");
+        } else {
+          toast.success("Text translated!");
+        }
+      }
+    } catch (err) {
+      console.error("Conversion error:", err);
+      toast.error("Failed to convert text");
+      setShowPreview(false);
+    } finally {
+      setIsConverting(false);
+    }
+  };
+
+  // Apply converted text to description
+  const applyConvertedText = () => {
+    setDescription(convertedText);
+    setShowPreview(false);
+    toast.success("Text applied to description");
   };
 
   // Translate description and play via text-to-speech function
@@ -544,6 +609,117 @@ export default function ComplaintForm({ onSuccess }: ComplaintFormProps) {
             <p className="text-xs text-muted-foreground text-right">
               {description.length}/1000
             </p>
+
+            {/* Smart Multilingual Input Section */}
+            <Card className="border-dashed bg-muted/30">
+              <CardContent className="pt-4 space-y-4">
+                <div className="flex items-center gap-2 mb-3">
+                  <Languages className="h-5 w-5 text-primary" />
+                  <h3 className="font-semibold text-sm">Smart Language Converter</h3>
+                  <Badge variant="secondary" className="text-xs">AI-Powered</Badge>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                  {/* Mode Selection */}
+                  <div className="space-y-2">
+                    <Label className="text-xs">Mode</Label>
+                    <Select value={transliterationMode} onValueChange={(value: any) => setTransliterationMode(value)}>
+                      <SelectTrigger className="h-9">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="transliterate">Transliterate Only</SelectItem>
+                        <SelectItem value="translate">Translate Only</SelectItem>
+                        <SelectItem value="both">Both</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {/* Input Language */}
+                  <div className="space-y-2">
+                    <Label className="text-xs">Input Language</Label>
+                    <Select value={inputLanguage} onValueChange={setInputLanguage}>
+                      <SelectTrigger className="h-9">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {INPUT_LANGUAGES.map((lang) => (
+                          <SelectItem key={lang.value} value={lang.value}>
+                            {lang.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {/* Output Language */}
+                  <div className="space-y-2">
+                    <Label className="text-xs">Output Language</Label>
+                    <Select value={outputLanguage} onValueChange={setOutputLanguage}>
+                      <SelectTrigger className="h-9">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {TRANSLATION_LANGUAGES.map((lang) => (
+                          <SelectItem key={lang.value} value={lang.value}>
+                            {lang.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+
+                <Button
+                  type="button"
+                  onClick={handleConvertText}
+                  disabled={isConverting || !description}
+                  className="w-full gap-2"
+                  variant="secondary"
+                >
+                  {isConverting ? (
+                    <>
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      Converting...
+                    </>
+                  ) : (
+                    <>
+                      <ArrowRight className="h-4 w-4" />
+                      Convert Text
+                    </>
+                  )}
+                </Button>
+
+                {/* Preview Section */}
+                {showPreview && convertedText && (
+                  <div className="space-y-3 mt-4 p-4 bg-background rounded-lg border">
+                    <div className="flex items-center justify-between">
+                      <Label className="text-sm font-semibold">Converted Result:</Label>
+                      <Button
+                        type="button"
+                        size="sm"
+                        onClick={applyConvertedText}
+                        className="gap-2"
+                      >
+                        Apply to Description
+                      </Button>
+                    </div>
+                    <div className="p-3 bg-muted rounded-md">
+                      <p className="text-sm whitespace-pre-wrap">{convertedText}</p>
+                    </div>
+                    <div className="flex gap-2 text-xs text-muted-foreground">
+                      <Badge variant="outline">Original: {description.substring(0, 30)}...</Badge>
+                      <ArrowRight className="h-4 w-4" />
+                      <Badge variant="outline">Converted</Badge>
+                    </div>
+                  </div>
+                )}
+
+                <p className="text-xs text-muted-foreground">
+                  💡 Type in English letters (e.g., "ninna hesaru yenu") and convert to native script (e.g., "ನಿನ್ನ ಹೆಸರು ಏನು?")
+                </p>
+              </CardContent>
+            </Card>
           </div>
 
           <div className="space-y-2">

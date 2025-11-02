@@ -8,3 +8,6 @@ verify_jwt = false
 
 [functions.speech-to-text]
 verify_jwt = false
+
+[functions.transliterate-text]
+verify_jwt = false
