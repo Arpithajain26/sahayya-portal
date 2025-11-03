@@ -3,10 +3,10 @@ import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Dialog, DialogContent } from "@/components/ui/dialog";
 import ComplaintForm from "@/components/complaints/ComplaintForm";
 import ComplaintCard from "@/components/complaints/ComplaintCard";
 import ComplaintDetailsDialog from "@/components/complaints/ComplaintDetailsDialog";
-import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { LogOut, Plus, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 
