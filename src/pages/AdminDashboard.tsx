@@ -38,6 +38,8 @@ import {
   TrendingUp,
   Users,
   AlertCircle,
+  Star,
+  LogOut,
 } from "lucide-react";
 import { format } from "date-fns";
 
@@ -53,6 +55,8 @@ interface Complaint {
   location: string | null;
   image_url: string | null;
   student_id: string;
+  student_feedback?: string | null;
+  student_rating?: number | null;
   profiles?: {
     full_name: string;
     email: string;
@@ -404,6 +408,15 @@ export default function AdminDashboard() {
                                   <span>{complaint.location}</span>
                                 </>
                               )}
+                              {complaint.student_rating && (
+                                <>
+                                  <span>•</span>
+                                  <div className="flex items-center gap-1">
+                                    <Star className="h-3 w-3 fill-yellow-400 text-yellow-400" />
+                                    <span>{complaint.student_rating}/5</span>
+                                  </div>
+                                </>
+                              )}
                             </div>
                           </div>
                         </div>
@@ -469,6 +482,56 @@ export default function AdminDashboard() {
                               alt="Complaint"
                               className="rounded-lg border mt-2 max-h-64 object-cover"
                             />
+                          </div>
+                        )}
+
+                        {/* Student Feedback and Rating Section */}
+                        {(selectedComplaint?.student_feedback || selectedComplaint?.student_rating) && (
+                          <div className="bg-blue-50 dark:bg-blue-950/20 p-4 rounded-lg border border-blue-200 dark:border-blue-800">
+                            <Label className="text-sm font-semibold text-blue-900 dark:text-blue-100 flex items-center gap-2">
+                              <MessageSquare className="h-4 w-4" />
+                              Student Feedback
+                            </Label>
+                            {selectedComplaint?.student_rating && (
+                              <div className="flex items-center gap-2 mt-2">
+                                <Label className="text-xs text-muted-foreground">Rating:</Label>
+                                <div className="flex gap-1">
+                                  {[1, 2, 3, 4, 5].map((star) => (
+                                    <Star
+                                      key={star}
+                                      className={`h-4 w-4 ${
+                                        star <= (selectedComplaint?.student_rating || 0)
+                                          ? "fill-yellow-400 text-yellow-400"
+                                          : "text-gray-300"
+                                      }`}
+                                    />
+                                  ))}
+                                </div>
+                                <span className="text-sm font-medium">
+                                  {selectedComplaint?.student_rating}/5
+                                </span>
+                              </div>
+                            )}
+                            {selectedComplaint?.student_feedback && (
+                              <div className="mt-3">
+                                <p className="text-sm whitespace-pre-wrap">
+                                  {selectedComplaint.student_feedback}
+                                </p>
+                              </div>
+                            )}
+                          </div>
+                        )}
+
+                        {/* Student Deadline */}
+                        {selectedComplaint?.deadline && (
+                          <div className="bg-amber-50 dark:bg-amber-950/20 p-3 rounded-lg border border-amber-200 dark:border-amber-800">
+                            <Label className="text-xs text-muted-foreground flex items-center gap-1">
+                              <Calendar className="h-3 w-3" />
+                              Student Set Deadline
+                            </Label>
+                            <p className="text-sm font-medium mt-1">
+                              {format(new Date(selectedComplaint.deadline), "PPP 'at' p")}
+                            </p>
                           </div>
                         )}
                       </div>

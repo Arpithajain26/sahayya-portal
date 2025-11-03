@@ -27,7 +27,7 @@ export default function Auth() {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
   const [mode, setMode] = useState<"login" | "signup">("login");
-  const [role, setRole] = useState<"student" | "admin">("student");
+  const [loginType, setLoginType] = useState<"student" | "admin">("student");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [fullName, setFullName] = useState("");
@@ -57,6 +57,23 @@ export default function Auth() {
     setLoading(true);
 
     try {
+      // Admin login with hardcoded credentials
+      if (loginType === "admin") {
+        if (email !== "admin@college.edu.in" || password !== "admin123") {
+          throw new Error("Invalid admin credentials");
+        }
+        
+        const { error } = await supabase.auth.signInWithPassword({
+          email,
+          password,
+        });
+
+        if (error) throw error;
+        toast.success("Admin logged in successfully!");
+        return;
+      }
+
+      // Student signup/login
       if (mode === "signup") {
         const redirectUrl = `${window.location.origin}/`;
 
@@ -74,37 +91,28 @@ export default function Auth() {
         if (error) throw error;
 
         if (data.user) {
-          // If admin signup, add admin role
-          if (role === "admin") {
-            const { error: roleError } = await supabase
-              .from("user_roles")
-              .insert({
-                user_id: data.user.id,
-                role: "admin",
-              });
+          // Assign student role by default
+          const { error: roleError } = await supabase
+            .from("user_roles")
+            .insert({
+              user_id: data.user.id,
+              role: "student",
+            });
 
-            if (roleError) {
-              console.error("Role assignment error:", roleError);
-              toast.error(
-                "Account created but role assignment failed. Please contact support."
-              );
-            }
+          if (roleError) {
+            console.error("Role assignment error:", roleError);
           }
 
-          toast.success(
-            `Account created successfully! ${
-              role === "admin" ? "Admin privileges granted." : ""
-            }`
-          );
+          toast.success("Account created successfully!");
         }
       } else {
+        // Student login
         const { error } = await supabase.auth.signInWithPassword({
           email,
           password,
         });
 
         if (error) throw error;
-
         toast.success("Logged in successfully!");
       }
     } catch (error: any) {
@@ -181,65 +189,62 @@ export default function Auth() {
           <CardHeader className="space-y-3">
             <div className="flex items-center justify-between">
               <CardTitle className="text-2xl">
-                {mode === "login" ? "Welcome Back" : "Create Account"}
+                {loginType === "admin" 
+                  ? "Admin Login" 
+                  : mode === "login" ? "Student Login" : "Student Registration"}
               </CardTitle>
-              {mode === "signup" && (
-                <Badge variant={role === "admin" ? "default" : "secondary"}>
-                  <UserCheck className="h-3 w-3 mr-1" />
-                  {role === "admin" ? "Admin" : "Student"}
-                </Badge>
-              )}
+              <Badge variant={loginType === "admin" ? "default" : "secondary"}>
+                {loginType === "admin" ? <Shield className="h-3 w-3 mr-1" /> : <UserCheck className="h-3 w-3 mr-1" />}
+                {loginType === "admin" ? "Admin" : "Student"}
+              </Badge>
             </div>
             <CardDescription>
-              {mode === "login"
+              {loginType === "admin"
+                ? "Use admin credentials to access dashboard"
+                : mode === "login"
                 ? "Sign in to access your dashboard"
-                : "Register as a student or admin"}
+                : "Register as a new student"}
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <form onSubmit={handleSubmit} className="space-y-4">
-              {mode === "signup" && (
-                <>
-                  <div className="space-y-2">
-                    <Label htmlFor="role">Register As</Label>
-                    <Select
-                      value={role}
-                      onValueChange={(value: "student" | "admin") =>
-                        setRole(value)
-                      }
-                    >
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="student">
-                          <div className="flex items-center gap-2">
-                            <UserCheck className="h-4 w-4" />
-                            Student
-                          </div>
-                        </SelectItem>
-                        <SelectItem value="admin">
-                          <div className="flex items-center gap-2">
-                            <Shield className="h-4 w-4" />
-                            Admin
-                          </div>
-                        </SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
+            {/* Login Type Selector */}
+            <div className="flex gap-2 mb-6">
+              <Button
+                type="button"
+                variant={loginType === "student" ? "default" : "outline"}
+                className="flex-1"
+                onClick={() => setLoginType("student")}
+              >
+                <UserCheck className="h-4 w-4 mr-2" />
+                Student
+              </Button>
+              <Button
+                type="button"
+                variant={loginType === "admin" ? "default" : "outline"}
+                className="flex-1"
+                onClick={() => {
+                  setLoginType("admin");
+                  setMode("login"); // Admin can only login
+                }}
+              >
+                <Shield className="h-4 w-4 mr-2" />
+                Admin
+              </Button>
+            </div>
 
-                  <div className="space-y-2">
-                    <Label htmlFor="fullName">Full Name</Label>
-                    <Input
-                      id="fullName"
-                      type="text"
-                      placeholder="Enter your full name"
-                      value={fullName}
-                      onChange={(e) => setFullName(e.target.value)}
-                      required
-                    />
-                  </div>
-                </>
+            <form onSubmit={handleSubmit} className="space-y-4">
+              {mode === "signup" && loginType === "student" && (
+                <div className="space-y-2">
+                  <Label htmlFor="fullName">Full Name</Label>
+                  <Input
+                    id="fullName"
+                    type="text"
+                    placeholder="Enter your full name"
+                    value={fullName}
+                    onChange={(e) => setFullName(e.target.value)}
+                    required
+                  />
+                </div>
               )}
 
               <div className="space-y-2">
@@ -281,31 +286,33 @@ export default function Auth() {
               </Button>
             </form>
 
-            <div className="mt-4 text-center text-sm">
-              {mode === "login" ? (
-                <p>
-                  Don't have an account?{" "}
-                  <Button
-                    variant="link"
-                    className="p-0 h-auto"
-                    onClick={() => setMode("signup")}
-                  >
-                    Sign up
-                  </Button>
-                </p>
-              ) : (
-                <p>
-                  Already have an account?{" "}
-                  <Button
-                    variant="link"
-                    className="p-0 h-auto"
-                    onClick={() => setMode("login")}
-                  >
-                    Sign in
-                  </Button>
-                </p>
-              )}
-            </div>
+            {loginType === "student" && (
+              <div className="mt-4 text-center text-sm">
+                {mode === "login" ? (
+                  <p>
+                    Don't have an account?{" "}
+                    <Button
+                      variant="link"
+                      className="p-0 h-auto"
+                      onClick={() => setMode("signup")}
+                    >
+                      Sign up
+                    </Button>
+                  </p>
+                ) : (
+                  <p>
+                    Already have an account?{" "}
+                    <Button
+                      variant="link"
+                      className="p-0 h-auto"
+                      onClick={() => setMode("login")}
+                    >
+                      Sign in
+                    </Button>
+                  </p>
+                )}
+              </div>
+            )}
           </CardContent>
         </Card>
       </div>
