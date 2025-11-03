@@ -19,14 +19,7 @@ export default function Index() {
   const { t } = useTranslation();
   const navigate = useNavigate();
 
-  useEffect(() => {
-    // Check if user is already logged in
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session) {
-        navigate("/dashboard");
-      }
-    });
-  }, [navigate]);
+  // Removed auto-redirect - users must click "Get Started" to proceed
 
   return (
     <div className="min-h-screen bg-background">

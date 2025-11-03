@@ -98,9 +98,12 @@ export type Database = {
           location: string | null
           resolution_notes: string | null
           resolved_at: string | null
+          resubmitted_from: string | null
           sentiment_score: number | null
           status: Database["public"]["Enums"]["complaint_status"]
+          student_feedback: string | null
           student_id: string
+          student_rating: number | null
           title: string
           updated_at: string
         }
@@ -117,9 +120,12 @@ export type Database = {
           location?: string | null
           resolution_notes?: string | null
           resolved_at?: string | null
+          resubmitted_from?: string | null
           sentiment_score?: number | null
           status?: Database["public"]["Enums"]["complaint_status"]
+          student_feedback?: string | null
           student_id: string
+          student_rating?: number | null
           title: string
           updated_at?: string
         }
@@ -136,13 +142,24 @@ export type Database = {
           location?: string | null
           resolution_notes?: string | null
           resolved_at?: string | null
+          resubmitted_from?: string | null
           sentiment_score?: number | null
           status?: Database["public"]["Enums"]["complaint_status"]
+          student_feedback?: string | null
           student_id?: string
+          student_rating?: number | null
           title?: string
           updated_at?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "complaints_resubmitted_from_fkey"
+            columns: ["resubmitted_from"]
+            isOneToOne: false
+            referencedRelation: "complaints"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       profiles: {
         Row: {

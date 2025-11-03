@@ -5,7 +5,8 @@ import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import ComplaintForm from "@/components/complaints/ComplaintForm";
 import ComplaintCard from "@/components/complaints/ComplaintCard";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import ComplaintDetailsDialog from "@/components/complaints/ComplaintDetailsDialog";
+import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { LogOut, Plus, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 
@@ -47,9 +48,13 @@ export default function StudentDashboard() {
   const fetchComplaints = async () => {
     setLoading(true);
     try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
       const { data, error } = await supabase
         .from("complaints")
         .select("*")
+        .eq("student_id", user.id)
         .order("created_at", { ascending: false });
 
       if (error) throw error;
@@ -69,6 +74,31 @@ export default function StudentDashboard() {
   const filterComplaints = (status?: string) => {
     if (!status) return complaints;
     return complaints.filter((c) => c.status === status);
+  };
+
+  const handleResubmit = async (complaintId: string) => {
+    try {
+      const originalComplaint = complaints.find((c) => c.id === complaintId);
+      if (!originalComplaint) return;
+
+      // Create a new complaint based on the original
+      const { error } = await supabase.from("complaints").insert({
+        student_id: user?.id,
+        title: `[RESUBMITTED] ${originalComplaint.title}`,
+        description: originalComplaint.description,
+        category: originalComplaint.category,
+        location: originalComplaint.location,
+        image_url: originalComplaint.image_url,
+        resubmitted_from: complaintId,
+      });
+
+      if (error) throw error;
+      toast.success("Complaint resubmitted successfully");
+      setSelectedComplaint(null);
+      fetchComplaints();
+    } catch (error: any) {
+      toast.error(error.message || "Failed to resubmit complaint");
+    }
   };
 
   return (
@@ -188,38 +218,13 @@ export default function StudentDashboard() {
       </Dialog>
 
       {/* Complaint Details Dialog */}
-      <Dialog open={!!selectedComplaint} onOpenChange={() => setSelectedComplaint(null)}>
-        <DialogContent className="max-w-2xl">
-          {selectedComplaint && (
-            <>
-              <DialogHeader>
-                <DialogTitle>{selectedComplaint.title}</DialogTitle>
-              </DialogHeader>
-              <div className="space-y-4">
-                <div>
-                  <h4 className="font-semibold mb-2">Description</h4>
-                  <p className="text-sm text-muted-foreground">
-                    {selectedComplaint.description}
-                  </p>
-                </div>
-                {selectedComplaint.image_url && (
-                  <img
-                    src={selectedComplaint.image_url}
-                    alt="Complaint"
-                    className="w-full rounded-lg"
-                  />
-                )}
-                {selectedComplaint.resolution_notes && (
-                  <div className="bg-success/10 p-4 rounded-lg">
-                    <h4 className="font-semibold mb-2 text-success">Resolution Notes</h4>
-                    <p className="text-sm">{selectedComplaint.resolution_notes}</p>
-                  </div>
-                )}
-              </div>
-            </>
-          )}
-        </DialogContent>
-      </Dialog>
+      <ComplaintDetailsDialog
+        complaint={selectedComplaint}
+        isOpen={!!selectedComplaint}
+        onClose={() => setSelectedComplaint(null)}
+        onUpdate={fetchComplaints}
+        onResubmit={handleResubmit}
+      />
     </div>
   );
 }

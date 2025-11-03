@@ -8,7 +8,11 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { toast } from "sonner";
 import { Eye, EyeOff, Loader2 } from "lucide-react";
 
-export default function AuthForm() {
+interface AuthFormProps {
+  userType: "student" | "admin";
+}
+
+export default function AuthForm({ userType }: AuthFormProps) {
   const [isLogin, setIsLogin] = useState(true);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -45,12 +49,12 @@ export default function AuthForm() {
 
         if (error) throw error;
         
-        // Assign student role by default
+        // Assign role based on userType
         const { data: { user } } = await supabase.auth.getUser();
         if (user) {
           const { error: roleError } = await supabase
             .from("user_roles")
-            .insert({ user_id: user.id, role: "student" });
+            .insert({ user_id: user.id, role: userType === "admin" ? "admin" : "student" });
           
           if (roleError) console.error("Role assignment error:", roleError);
         }
@@ -69,10 +73,14 @@ export default function AuthForm() {
     <Card className="w-full max-w-md shadow-lg">
       <CardHeader className="space-y-1">
         <CardTitle className="text-2xl font-bold">
-          {isLogin ? "Welcome Back" : "Create Account"}
+          {userType === "admin" 
+            ? "Admin Login" 
+            : isLogin ? "Student Login" : "Student Registration"}
         </CardTitle>
         <CardDescription>
-          {isLogin
+          {userType === "admin"
+            ? "Enter admin credentials to access the dashboard"
+            : isLogin
             ? "Enter your credentials to access your account"
             : "Fill in your details to register"}
         </CardDescription>
@@ -141,17 +149,19 @@ export default function AuthForm() {
           </Button>
         </form>
 
-        <div className="mt-4 text-center text-sm">
-          <button
-            type="button"
-            onClick={() => setIsLogin(!isLogin)}
-            className="text-primary hover:underline"
-          >
-            {isLogin
-              ? "Don't have an account? Sign up"
-              : "Already have an account? Sign in"}
-          </button>
-        </div>
+        {userType === "student" && (
+          <div className="mt-4 text-center text-sm">
+            <button
+              type="button"
+              onClick={() => setIsLogin(!isLogin)}
+              className="text-primary hover:underline"
+            >
+              {isLogin
+                ? "Don't have an account? Sign up"
+                : "Already have an account? Sign in"}
+            </button>
+          </div>
+        )}
       </CardContent>
     </Card>
   );
