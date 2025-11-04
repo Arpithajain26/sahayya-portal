@@ -33,10 +33,35 @@ export default function Auth() {
   const [fullName, setFullName] = useState("");
 
   useEffect(() => {
+    const checkUserAndRedirect = async (userId: string) => {
+      // Get user email to check if admin
+      const { data: { user } } = await supabase.auth.getUser();
+      
+      // If admin email, always redirect to admin dashboard
+      if (user?.email === "admin@college.edu.in") {
+        navigate("/admin");
+        return;
+      }
+
+      // Otherwise check role in database
+      const { data: roleData } = await supabase
+        .from("user_roles")
+        .select("role")
+        .eq("user_id", userId)
+        .eq("role", "admin")
+        .single();
+
+      if (roleData) {
+        navigate("/admin");
+      } else {
+        navigate("/dashboard");
+      }
+    };
+
     // Check if user is already logged in
     supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session) {
-        navigate("/dashboard");
+      if (session?.user) {
+        checkUserAndRedirect(session.user.id);
       }
     });
 
@@ -44,8 +69,8 @@ export default function Auth() {
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_event, session) => {
-      if (session) {
-        navigate("/dashboard");
+      if (session?.user) {
+        checkUserAndRedirect(session.user.id);
       }
     });
 
