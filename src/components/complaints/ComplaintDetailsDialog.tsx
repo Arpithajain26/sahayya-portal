@@ -6,8 +6,18 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { Calendar, Star, MessageSquare, RefreshCw } from "lucide-react";
+import { Calendar, Star, MessageSquare, RefreshCw, CheckCircle, Trash2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 interface ComplaintDetailsDialogProps {
   complaint: any;
@@ -30,6 +40,8 @@ export default function ComplaintDetailsDialog({
   const [studentFeedback, setStudentFeedback] = useState(complaint?.student_feedback || "");
   const [rating, setRating] = useState(complaint?.student_rating || 0);
   const [saving, setSaving] = useState(false);
+  const [showConfirmResolved, setShowConfirmResolved] = useState(false);
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
 
   const handleSave = async () => {
     setSaving(true);
@@ -51,6 +63,46 @@ export default function ComplaintDetailsDialog({
       toast.error(error.message || "Failed to update complaint");
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleConfirmResolved = async () => {
+    setSaving(true);
+    try {
+      const { error } = await supabase
+        .from("complaints")
+        .delete()
+        .eq("id", complaint.id);
+
+      if (error) throw error;
+      toast.success("Complaint confirmed as resolved and removed");
+      onUpdate();
+      onClose();
+    } catch (error: any) {
+      toast.error(error.message || "Failed to confirm resolution");
+    } finally {
+      setSaving(false);
+      setShowConfirmResolved(false);
+    }
+  };
+
+  const handleDelete = async () => {
+    setSaving(true);
+    try {
+      const { error } = await supabase
+        .from("complaints")
+        .delete()
+        .eq("id", complaint.id);
+
+      if (error) throw error;
+      toast.success("Complaint deleted successfully");
+      onUpdate();
+      onClose();
+    } catch (error: any) {
+      toast.error(error.message || "Failed to delete complaint");
+    } finally {
+      setSaving(false);
+      setShowDeleteDialog(false);
     }
   };
 
@@ -189,25 +241,83 @@ export default function ComplaintDetailsDialog({
               )}
 
               {/* Action Buttons */}
-              <div className="flex gap-2 pt-4">
-                <Button onClick={handleSave} disabled={saving} className="flex-1">
-                  {saving ? "Saving..." : "Save Changes"}
-                </Button>
-                {onResubmit && complaint.status !== "resolved" && (
+              <div className="flex flex-col gap-2 pt-4">
+                <div className="flex gap-2">
+                  <Button onClick={handleSave} disabled={saving} className="flex-1">
+                    {saving ? "Saving..." : "Save Changes"}
+                  </Button>
+                  {onResubmit && complaint.status !== "resolved" && (
+                    <Button
+                      variant="outline"
+                      onClick={() => onResubmit(complaint.id)}
+                      className="flex-1"
+                    >
+                      <RefreshCw className="h-4 w-4 mr-2" />
+                      Resubmit
+                    </Button>
+                  )}
+                </div>
+                
+                {complaint.status === "resolved" && (
                   <Button
-                    variant="outline"
-                    onClick={() => onResubmit(complaint.id)}
-                    className="flex-1"
+                    variant="default"
+                    onClick={() => setShowConfirmResolved(true)}
+                    className="w-full bg-green-600 hover:bg-green-700"
                   >
-                    <RefreshCw className="h-4 w-4 mr-2" />
-                    Resubmit Complaint
+                    <CheckCircle className="h-4 w-4 mr-2" />
+                    Confirm Resolved & Remove
                   </Button>
                 )}
+                
+                <Button
+                  variant="destructive"
+                  onClick={() => setShowDeleteDialog(true)}
+                  className="w-full"
+                >
+                  <Trash2 className="h-4 w-4 mr-2" />
+                  Delete Complaint
+                </Button>
               </div>
             </div>
           </>
         )}
       </DialogContent>
+
+      {/* Confirm Resolved Dialog */}
+      <AlertDialog open={showConfirmResolved} onOpenChange={setShowConfirmResolved}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Confirm Resolution</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure this complaint has been resolved? This will permanently remove it from your list.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Keep It</AlertDialogCancel>
+            <AlertDialogAction onClick={handleConfirmResolved} disabled={saving}>
+              {saving ? "Removing..." : "Confirm & Remove"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Complaint</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete this complaint? This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDelete} disabled={saving} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              {saving ? "Deleting..." : "Delete"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Dialog>
   );
 }

@@ -40,6 +40,7 @@ import {
   AlertCircle,
   Star,
   LogOut,
+  Volume2,
 } from "lucide-react";
 import { format } from "date-fns";
 
@@ -57,6 +58,7 @@ interface Complaint {
   student_id: string;
   student_feedback?: string | null;
   student_rating?: number | null;
+  kannada_translation?: string | null;
   profiles?: {
     full_name: string;
     email: string;
@@ -80,6 +82,7 @@ export default function AdminDashboard() {
   const [newDeadline, setNewDeadline] = useState("");
   const [feedbackText, setFeedbackText] = useState("");
   const [isAdmin, setIsAdmin] = useState(false);
+  const [playingAudio, setPlayingAudio] = useState<string | null>(null);
 
   useEffect(() => {
     checkAdminAccess();
@@ -165,6 +168,24 @@ export default function AdminDashboard() {
       if (newStatus) updates.status = newStatus;
       if (newDeadline) updates.deadline = newDeadline;
 
+      // If status is being updated to resolved, delete the complaint
+      if (newStatus === "resolved") {
+        const { error: deleteError } = await supabase
+          .from("complaints")
+          .delete()
+          .eq("id", selectedComplaint.id);
+
+        if (deleteError) throw deleteError;
+        
+        toast.success("Complaint marked as resolved and deleted");
+        setSelectedComplaint(null);
+        setNewStatus("");
+        setNewDeadline("");
+        setFeedbackText("");
+        fetchComplaints();
+        return;
+      }
+
       const { error: updateError } = await supabase
         .from("complaints")
         .update(updates)
@@ -203,6 +224,29 @@ export default function AdminDashboard() {
       fetchComplaints();
     } catch (error: any) {
       toast.error(error.message || "Failed to update complaint");
+    }
+  };
+
+  const playAudio = async (text: string, complaintId: string, language: string = "english") => {
+    if (playingAudio === complaintId) {
+      setPlayingAudio(null);
+      return;
+    }
+
+    setPlayingAudio(complaintId);
+    try {
+      const { data, error } = await supabase.functions.invoke("text-to-speech", {
+        body: { text, language },
+      });
+
+      if (error) throw error;
+
+      const audio = new Audio(`data:audio/mp3;base64,${data.audioContent}`);
+      audio.onended = () => setPlayingAudio(null);
+      await audio.play();
+    } catch (error: any) {
+      toast.error("Failed to play audio");
+      setPlayingAudio(null);
     }
   };
 
@@ -417,6 +461,52 @@ export default function AdminDashboard() {
                                   </div>
                                 </>
                               )}
+                            </div>
+                            <div className="flex gap-2 mt-2">
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  playAudio(complaint.description, complaint.id, "english");
+                                }}
+                              >
+                                <Volume2 className="h-3 w-3 mr-1" />
+                                {playingAudio === complaint.id ? "Playing..." : "English"}
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  playAudio(complaint.kannada_translation || complaint.description, complaint.id, "kannada");
+                                }}
+                              >
+                                <Volume2 className="h-3 w-3 mr-1" />
+                                Kannada
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  playAudio(complaint.description, complaint.id, "hindi");
+                                }}
+                              >
+                                <Volume2 className="h-3 w-3 mr-1" />
+                                Hindi
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  playAudio(complaint.description, complaint.id, "telugu");
+                                }}
+                              >
+                                <Volume2 className="h-3 w-3 mr-1" />
+                                Telugu
+                              </Button>
                             </div>
                           </div>
                         </div>
