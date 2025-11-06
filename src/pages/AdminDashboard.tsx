@@ -297,7 +297,7 @@ export default function AdminDashboard() {
               Manage and resolve campus grievances
             </p>
           </div>
-          <Button variant="outline" onClick={() => navigate("/dashboard")}>
+          <Button variant="outline" onClick={() => navigate("/dashboard")} className="hover-scale">
             Back to Portal
           </Button>
         </div>
@@ -414,10 +414,10 @@ export default function AdminDashboard() {
                         <div className="flex items-start justify-between gap-4">
                           <div className="flex-1 space-y-2">
                             <div className="flex items-center gap-2">
-                              <Badge variant={getStatusBadge(complaint.status)}>
+                              <Badge variant={getStatusBadge(complaint.status)} className="animate-fade-in transition-all hover:scale-105">
                                 {complaint.status.replace("_", " ")}
                               </Badge>
-                              <Badge variant="outline">{complaint.category}</Badge>
+                              <Badge variant="outline" className="animate-fade-in transition-all hover:scale-105">{complaint.category}</Badge>
                               {complaint.deadline && (
                                 <Badge
                                   variant="secondary"
@@ -462,7 +462,7 @@ export default function AdminDashboard() {
                                 </>
                               )}
                             </div>
-                            <div className="flex gap-2 mt-2">
+                            <div className="flex gap-2 mt-2 animate-fade-in">
                               <Button
                                 size="sm"
                                 variant="outline"
@@ -470,6 +470,7 @@ export default function AdminDashboard() {
                                   e.stopPropagation();
                                   playAudio(complaint.description, complaint.id, "english");
                                 }}
+                                className={`hover-scale transition-all ${playingAudio === complaint.id ? "animate-pulse" : ""}`}
                               >
                                 <Volume2 className="h-3 w-3 mr-1" />
                                 {playingAudio === complaint.id ? "Playing..." : "English"}
@@ -481,6 +482,7 @@ export default function AdminDashboard() {
                                   e.stopPropagation();
                                   playAudio(complaint.kannada_translation || complaint.description, complaint.id, "kannada");
                                 }}
+                                className="hover-scale transition-all"
                               >
                                 <Volume2 className="h-3 w-3 mr-1" />
                                 Kannada
@@ -492,6 +494,7 @@ export default function AdminDashboard() {
                                   e.stopPropagation();
                                   playAudio(complaint.description, complaint.id, "hindi");
                                 }}
+                                className="hover-scale transition-all"
                               >
                                 <Volume2 className="h-3 w-3 mr-1" />
                                 Hindi
@@ -503,6 +506,7 @@ export default function AdminDashboard() {
                                   e.stopPropagation();
                                   playAudio(complaint.description, complaint.id, "telugu");
                                 }}
+                                className="hover-scale transition-all"
                               >
                                 <Volume2 className="h-3 w-3 mr-1" />
                                 Telugu
@@ -513,13 +517,13 @@ export default function AdminDashboard() {
                       </CardContent>
                     </Card>
                   </DialogTrigger>
-                  <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-                    <DialogHeader>
-                      <DialogTitle>Manage Complaint</DialogTitle>
-                      <DialogDescription>
-                        Update status, set deadline, and provide feedback
-                      </DialogDescription>
-                    </DialogHeader>
+                   <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto animate-scale-in">
+                     <DialogHeader className="animate-fade-in">
+                       <DialogTitle>Manage Complaint</DialogTitle>
+                       <DialogDescription>
+                         Update status, set deadline, and provide feedback
+                       </DialogDescription>
+                     </DialogHeader>
                     <div className="space-y-6">
                       {/* Complaint Details */}
                       <div className="space-y-4">
@@ -577,21 +581,21 @@ export default function AdminDashboard() {
 
                         {/* Student Feedback and Rating Section */}
                         {(selectedComplaint?.student_feedback || selectedComplaint?.student_rating) && (
-                          <div className="bg-blue-50 dark:bg-blue-950/20 p-4 rounded-lg border border-blue-200 dark:border-blue-800">
+                          <div className="bg-blue-50 dark:bg-blue-950/20 p-4 rounded-lg border border-blue-200 dark:border-blue-800 animate-fade-in transition-all hover:bg-blue-100 dark:hover:bg-blue-950/30">
                             <Label className="text-sm font-semibold text-blue-900 dark:text-blue-100 flex items-center gap-2">
                               <MessageSquare className="h-4 w-4" />
                               Student Feedback
                             </Label>
                             {selectedComplaint?.student_rating && (
-                              <div className="flex items-center gap-2 mt-2">
+                              <div className="flex items-center gap-2 mt-2 animate-fade-in">
                                 <Label className="text-xs text-muted-foreground">Rating:</Label>
                                 <div className="flex gap-1">
                                   {[1, 2, 3, 4, 5].map((star) => (
                                     <Star
                                       key={star}
-                                      className={`h-4 w-4 ${
+                                      className={`h-4 w-4 transition-all ${
                                         star <= (selectedComplaint?.student_rating || 0)
-                                          ? "fill-yellow-400 text-yellow-400"
+                                          ? "fill-yellow-400 text-yellow-400 animate-scale-in"
                                           : "text-gray-300"
                                       }`}
                                     />
@@ -614,7 +618,7 @@ export default function AdminDashboard() {
 
                         {/* Student Deadline */}
                         {selectedComplaint?.deadline && (
-                          <div className="bg-amber-50 dark:bg-amber-950/20 p-3 rounded-lg border border-amber-200 dark:border-amber-800">
+                          <div className="bg-amber-50 dark:bg-amber-950/20 p-3 rounded-lg border border-amber-200 dark:border-amber-800 animate-fade-in transition-all hover:bg-amber-100 dark:hover:bg-amber-950/30">
                             <Label className="text-xs text-muted-foreground flex items-center gap-1">
                               <Calendar className="h-3 w-3" />
                               Student Set Deadline
@@ -627,19 +631,19 @@ export default function AdminDashboard() {
                       </div>
 
                       {/* Management Controls */}
-                      <div className="space-y-4 pt-4 border-t">
+                      <div className="space-y-4 pt-4 border-t animate-fade-in">
                         <div className="space-y-2">
                           <Label htmlFor="status">Update Status</Label>
                           <Select value={newStatus} onValueChange={setNewStatus}>
-                            <SelectTrigger>
+                            <SelectTrigger className="transition-all hover:border-primary">
                               <SelectValue />
                             </SelectTrigger>
                             <SelectContent>
-                              <SelectItem value="submitted">Submitted</SelectItem>
-                              <SelectItem value="in_review">
+                              <SelectItem value="submitted" className="hover-scale">Submitted</SelectItem>
+                              <SelectItem value="in_review" className="hover-scale">
                                 In Review
                               </SelectItem>
-                              <SelectItem value="resolved">Resolved</SelectItem>
+                              <SelectItem value="resolved" className="hover-scale">Resolved</SelectItem>
                             </SelectContent>
                           </Select>
                         </div>
@@ -651,6 +655,7 @@ export default function AdminDashboard() {
                             type="datetime-local"
                             value={newDeadline}
                             onChange={(e) => setNewDeadline(e.target.value)}
+                            className="transition-all focus:scale-[1.01]"
                           />
                         </div>
 
@@ -665,12 +670,13 @@ export default function AdminDashboard() {
                             value={feedbackText}
                             onChange={(e) => setFeedbackText(e.target.value)}
                             rows={4}
+                            className="transition-all focus:scale-[1.01]"
                           />
                         </div>
 
                         <Button
                           onClick={handleUpdateComplaint}
-                          className="w-full gap-2"
+                          className="w-full gap-2 hover-scale transition-all"
                         >
                           <CheckCircle className="h-4 w-4" />
                           Update Complaint

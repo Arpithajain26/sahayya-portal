@@ -104,7 +104,7 @@ export default function StudentDashboard() {
   return (
     <div className="min-h-screen bg-gradient-hero">
       {/* Header */}
-      <header className="bg-card border-b shadow-sm sticky top-0 z-10">
+      <header className="bg-card border-b shadow-sm sticky top-0 z-10 animate-fade-in">
         <div className="container mx-auto px-4 py-4 flex items-center justify-between">
           <div>
             <h1 className="text-2xl font-bold">Campus Grievance Portal</h1>
@@ -114,14 +114,14 @@ export default function StudentDashboard() {
           </div>
           <div className="flex items-center gap-2">
             {isAdmin && (
-              <Button variant="default" onClick={() => navigate("/admin")}>
+              <Button variant="default" onClick={() => navigate("/admin")} className="hover-scale">
                 Admin Dashboard
               </Button>
             )}
-            <Button variant="ghost" size="icon" onClick={fetchComplaints}>
+            <Button variant="ghost" size="icon" onClick={fetchComplaints} className="hover-scale transition-transform">
               <RefreshCw className="h-4 w-4" />
             </Button>
-            <Button variant="outline" onClick={handleSignOut}>
+            <Button variant="outline" onClick={handleSignOut} className="hover-scale">
               <LogOut className="h-4 w-4 mr-2" />
               Sign Out
             </Button>
@@ -130,27 +130,27 @@ export default function StudentDashboard() {
       </header>
 
       {/* Main Content */}
-      <main className="container mx-auto px-4 py-8">
+      <main className="container mx-auto px-4 py-8 animate-fade-in">
         <div className="mb-6 flex items-center justify-between">
-          <h2 className="text-3xl font-bold">My Complaints</h2>
-          <Button onClick={() => setShowForm(true)}>
+          <h2 className="text-3xl font-bold bg-gradient-to-r from-primary to-primary/60 bg-clip-text text-transparent">My Complaints</h2>
+          <Button onClick={() => setShowForm(true)} className="hover-scale">
             <Plus className="h-4 w-4 mr-2" />
             Submit New Complaint
           </Button>
         </div>
 
         <Tabs defaultValue="all" className="space-y-6">
-          <TabsList>
-            <TabsTrigger value="all">
+          <TabsList className="animate-fade-in">
+            <TabsTrigger value="all" className="transition-all hover:scale-105">
               All ({complaints.length})
             </TabsTrigger>
-            <TabsTrigger value="submitted">
+            <TabsTrigger value="submitted" className="transition-all hover:scale-105">
               Submitted ({filterComplaints("submitted").length})
             </TabsTrigger>
-            <TabsTrigger value="in_review">
+            <TabsTrigger value="in_review" className="transition-all hover:scale-105">
               In Review ({filterComplaints("in_review").length})
             </TabsTrigger>
-            <TabsTrigger value="resolved">
+            <TabsTrigger value="resolved" className="transition-all hover:scale-105">
               Resolved ({filterComplaints("resolved").length})
             </TabsTrigger>
           </TabsList>
@@ -162,20 +162,28 @@ export default function StudentDashboard() {
                 <p className="mt-2 text-muted-foreground">Loading complaints...</p>
               </div>
             ) : complaints.length === 0 ? (
-              <div className="text-center py-12 bg-card rounded-lg border">
+              <div className="text-center py-12 bg-card rounded-lg border animate-fade-in">
                 <p className="text-muted-foreground">No complaints yet.</p>
-                <Button className="mt-4" onClick={() => setShowForm(true)}>
+                <Button className="mt-4 hover-scale" onClick={() => setShowForm(true)}>
                   Submit Your First Complaint
                 </Button>
               </div>
             ) : (
               <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                {complaints.map((complaint) => (
-                  <ComplaintCard
+                {complaints.map((complaint, index) => (
+                  <div
                     key={complaint.id}
-                    complaint={complaint}
-                    onClick={() => setSelectedComplaint(complaint)}
-                  />
+                    className="animate-fade-in"
+                    style={{
+                      animationDelay: `${index * 0.1}s`,
+                      animationFillMode: "both"
+                    }}
+                  >
+                    <ComplaintCard
+                      complaint={complaint}
+                      onClick={() => setSelectedComplaint(complaint)}
+                    />
+                  </div>
                 ))}
               </div>
             )}
@@ -184,19 +192,27 @@ export default function StudentDashboard() {
           {["submitted", "in_review", "resolved"].map((status) => (
             <TabsContent key={status} value={status} className="space-y-4">
               {filterComplaints(status).length === 0 ? (
-                <div className="text-center py-12 bg-card rounded-lg border">
+                <div className="text-center py-12 bg-card rounded-lg border animate-fade-in">
                   <p className="text-muted-foreground">
                     No {status.replace("_", " ")} complaints.
                   </p>
                 </div>
               ) : (
                 <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                  {filterComplaints(status).map((complaint) => (
-                    <ComplaintCard
+                  {filterComplaints(status).map((complaint, index) => (
+                    <div
                       key={complaint.id}
-                      complaint={complaint}
-                      onClick={() => setSelectedComplaint(complaint)}
-                    />
+                      className="animate-fade-in"
+                      style={{
+                        animationDelay: `${index * 0.1}s`,
+                        animationFillMode: "both"
+                      }}
+                    >
+                      <ComplaintCard
+                        complaint={complaint}
+                        onClick={() => setSelectedComplaint(complaint)}
+                      />
+                    </div>
                   ))}
                 </div>
               )}
