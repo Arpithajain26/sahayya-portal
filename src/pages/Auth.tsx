@@ -34,22 +34,13 @@ export default function Auth() {
 
   useEffect(() => {
     const checkUserAndRedirect = async (userId: string) => {
-      // Get user email to check if admin
-      const { data: { user } } = await supabase.auth.getUser();
-      
-      // If admin email, always redirect to admin dashboard
-      if (user?.email === "admin@college.edu.in") {
-        navigate("/admin");
-        return;
-      }
-
-      // Otherwise check role in database
+      // Check role in database
       const { data: roleData } = await supabase
         .from("user_roles")
         .select("role")
         .eq("user_id", userId)
         .eq("role", "admin")
-        .single();
+        .maybeSingle();
 
       if (roleData) {
         navigate("/admin");
@@ -82,18 +73,30 @@ export default function Auth() {
     setLoading(true);
 
     try {
-      // Admin login with hardcoded credentials
+      // Admin login
       if (loginType === "admin") {
-        if (email !== "admin@college.edu.in" || password !== "admin123") {
-          throw new Error("Invalid admin credentials");
-        }
-        
-        const { error } = await supabase.auth.signInWithPassword({
+        const { data, error } = await supabase.auth.signInWithPassword({
           email,
           password,
         });
 
-        if (error) throw error;
+        if (error) {
+          throw new Error("Invalid admin credentials. Please contact system administrator.");
+        }
+
+        // Verify admin role in database
+        const { data: roleData } = await supabase
+          .from("user_roles")
+          .select("role")
+          .eq("user_id", data.user.id)
+          .eq("role", "admin")
+          .maybeSingle();
+
+        if (!roleData) {
+          await supabase.auth.signOut();
+          throw new Error("Access denied. Admin privileges required.");
+        }
+
         toast.success("Admin logged in successfully!");
         return;
       }
