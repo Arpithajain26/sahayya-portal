@@ -88,6 +88,35 @@ export default function AdminDashboard() {
     checkAdminAccess();
   }, []);
 
+  // Real-time subscription for new complaints
+  useEffect(() => {
+    if (!isAdmin) return;
+
+    const channel = supabase
+      .channel('admin-complaints')
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'complaints'
+        },
+        (payload) => {
+          console.log('New complaint received:', payload);
+          // Refresh complaints list to show the new complaint
+          fetchComplaints();
+          toast.success("New complaint received!", {
+            description: (payload.new as any).title || "A new complaint has been submitted"
+          });
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [isAdmin]);
+
   const checkAdminAccess = async () => {
     try {
       const {
