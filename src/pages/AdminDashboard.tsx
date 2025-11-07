@@ -156,7 +156,7 @@ export default function AdminDashboard() {
         .select(
           `
           *,
-          profiles:student_id (
+          profiles!student_id (
             full_name,
             email
           )
