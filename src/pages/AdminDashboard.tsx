@@ -235,8 +235,22 @@ export default function AdminDashboard() {
 
     setPlayingAudio(complaintId);
     try {
+      let textToSpeak = text;
+      
+      // If language is not Kannada, translate the Kannada text first
+      if (language !== "kannada") {
+        const targetLang = language === "english" ? "English" : language === "hindi" ? "Hindi" : "Telugu";
+        const { data: translateData, error: translateError } = await supabase.functions.invoke("translate-text", {
+          body: { text, targetLanguage: targetLang },
+        });
+
+        if (translateError) throw translateError;
+        textToSpeak = translateData.translatedText;
+      }
+
+      // Now convert the translated text to speech
       const { data, error } = await supabase.functions.invoke("text-to-speech", {
-        body: { text, language },
+        body: { text: textToSpeak, language },
       });
 
       if (error) throw error;
