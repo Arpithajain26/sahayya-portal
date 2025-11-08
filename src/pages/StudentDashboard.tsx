@@ -113,11 +113,6 @@ export default function StudentDashboard() {
             </p>
           </div>
           <div className="flex items-center gap-2">
-            {isAdmin && (
-              <Button variant="default" onClick={() => navigate("/admin")} className="hover-scale">
-                Admin Dashboard
-              </Button>
-            )}
             <Button variant="ghost" size="icon" onClick={fetchComplaints} className="hover-scale transition-transform">
               <RefreshCw className="h-4 w-4" />
             </Button>
