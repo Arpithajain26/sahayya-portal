@@ -156,13 +156,13 @@ export default function AdminDashboard() {
         .select(
           `
           *,
-          profiles!student_id (
+          profiles:student_id (
             full_name,
             email
           )
         `
         )
-        .order("created_at", { ascending: false});
+        .order("created_at", { ascending: false });
 
       if (error) {
         console.error("Fetch error:", error);
