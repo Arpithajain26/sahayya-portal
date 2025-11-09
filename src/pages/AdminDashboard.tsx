@@ -123,6 +123,7 @@ export default function AdminDashboard() {
         data: { user },
       } = await supabase.auth.getUser();
       if (!user) {
+        setLoading(false);
         navigate("/auth");
         return;
       }
@@ -133,10 +134,11 @@ export default function AdminDashboard() {
         .select("role")
         .eq("user_id", user.id)
         .eq("role", "admin")
-        .single();
+        .maybeSingle();
 
       if (roleError || !roleData) {
         toast.error("Access denied. Admin privileges required.");
+        setLoading(false);
         navigate("/dashboard");
         return;
       }
@@ -156,7 +158,7 @@ export default function AdminDashboard() {
         .select(
           `
           *,
-          profiles:student_id (
+          profiles!complaints_student_id_fkey (
             full_name,
             email
           )
