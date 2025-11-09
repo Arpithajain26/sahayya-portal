@@ -155,15 +155,13 @@ export default function AdminDashboard() {
     try {
       const { data, error } = await supabase
         .from("complaints")
-        .select(
-          `
+        .select(`
           *,
-          profiles!complaints_student_id_fkey (
+          profiles!student_id (
             full_name,
             email
           )
-        `
-        )
+        `)
         .order("created_at", { ascending: false });
 
       if (error) {
