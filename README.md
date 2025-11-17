@@ -1,73 +1,77 @@
-# Welcome to your Lovable project
+Sahayya Portal – Digital Complaint Submission System
 
-## Project info
+A modern web application designed to streamline complaint submission, tracking, and resolution.
+The platform provides a simple and intuitive interface for users to submit issues and for admins to manage and review complaints.
 
-**URL**: https://lovable.dev/projects/6e1122f1-e93a-4997-9aa8-b4c3b954f035
+🚀 Features
 
-## How can I edit this code?
+Simple and clean UI for complaint submission
 
-There are several ways of editing your application.
+Real-time form validation
 
-**Use Lovable**
+Responsive design for all devices
 
-Simply visit the [Lovable Project](https://lovable.dev/projects/6e1122f1-e93a-4997-9aa8-b4c3b954f035) and start prompting.
+Admin-side complaint viewing and management
 
-Changes made via Lovable will be committed automatically to this repo.
+Secure and structured data handling
 
-**Use your preferred IDE**
+Fast performance and optimized frontend workflow
 
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
+🛠 Tech Stack
 
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
+React
 
-Follow these steps:
+TypeScript
 
-```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
+Vite
 
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
+Tailwind CSS
 
-# Step 3: Install the necessary dependencies.
-npm i
+shadcn/ui components
 
-# Step 4: Start the development server with auto-reloading and an instant preview.
+📌 Folder Structure
+src/
+ ├── components/
+ ├── pages/
+ ├── hooks/
+ ├── services/
+ ├── styles/
+ └── App.tsx
+
+🔧 Installation & Setup
+
+Clone the repo and install dependencies:
+
+git clone <your-repo-url>
+cd <your-project-folder>
+npm install
 npm run dev
-```
 
-**Edit a file directly in GitHub**
 
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
+The app will run on:
 
-**Use GitHub Codespaces**
+http://localhost:5173/
 
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
+📦 Build for Production
+npm run build
 
-## What technologies are used for this project?
 
-This project is built with:
+The optimized build will be available in the dist/ folder.
 
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
+📄 Usage
 
-## How can I deploy this project?
+Users can submit complaints with required details
 
-Simply open [Lovable](https://lovable.dev/projects/6e1122f1-e93a-4997-9aa8-b4c3b954f035) and click on Share -> Publish.
+The system stores submissions for review
 
-## Can I connect a custom domain to my Lovable project?
+Admins can view all complaints and their status
 
-Yes, you can!
+🤝 Contributing
 
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
+Contributions, issues, and feature requests are always welcome.
+Feel free to create a pull request or open an issue.
 
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/features/custom-domain#custom-domain)
+📜 License
+
+This project is licensed under the MIT License.
+<img width="1920" height="1020" alt="Screenshot 2025-11-16 141542" src="https://github.com/user-attachments/assets/1a910083-b5ce-4937-b2cc-ae1334e33b80" />
