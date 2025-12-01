@@ -8,17 +8,8 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import {
   Dialog,
@@ -28,6 +19,17 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
 import {
   BarChart3,
@@ -39,7 +41,6 @@ import {
   Users,
   AlertCircle,
   Star,
-  LogOut,
   Volume2,
 } from "lucide-react";
 import { format } from "date-fns";
@@ -75,14 +76,11 @@ export default function AdminDashboard() {
     inProgress: 0,
     resolved: 0,
   });
-  const [selectedComplaint, setSelectedComplaint] = useState<Complaint | null>(
-    null
-  );
-  const [newStatus, setNewStatus] = useState("");
-  const [newDeadline, setNewDeadline] = useState("");
-  const [feedbackText, setFeedbackText] = useState("");
+  const [selectedComplaint, setSelectedComplaint] = useState<Complaint | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
   const [playingAudio, setPlayingAudio] = useState<string | null>(null);
+  const [resolvingId, setResolvingId] = useState<string | null>(null);
+  const [dialogOpen, setDialogOpen] = useState(false);
 
   useEffect(() => {
     checkAdminAccess();
@@ -103,7 +101,6 @@ export default function AdminDashboard() {
         },
         (payload) => {
           console.log('New complaint received:', payload);
-          // Refresh complaints list to show the new complaint
           fetchComplaints();
           toast.success("New complaint received!", {
             description: (payload.new as any).title || "A new complaint has been submitted"
@@ -128,7 +125,6 @@ export default function AdminDashboard() {
         return;
       }
 
-      // Check if user has admin role
       const { data: roleData, error: roleError } = await supabase
         .from("user_roles")
         .select("role")
@@ -171,14 +167,10 @@ export default function AdminDashboard() {
 
       setComplaints((data as any) || []);
 
-      // Calculate stats
       const total = data?.length || 0;
-      const pending =
-        data?.filter((c: any) => c.status === "submitted").length || 0;
-      const inProgress =
-        data?.filter((c: any) => c.status === "in_review").length || 0;
-      const resolved =
-        data?.filter((c: any) => c.status === "resolved").length || 0;
+      const pending = data?.filter((c: any) => c.status === "submitted").length || 0;
+      const inProgress = data?.filter((c: any) => c.status === "in_review").length || 0;
+      const resolved = data?.filter((c: any) => c.status === "resolved").length || 0;
 
       setStats({ total, pending, inProgress, resolved });
     } catch (error: any) {
@@ -188,71 +180,56 @@ export default function AdminDashboard() {
     }
   };
 
-  const handleUpdateComplaint = async () => {
-    if (!selectedComplaint) return;
-
+  const handleResolveComplaint = async (complaint: Complaint) => {
+    if (!complaint) return;
+    
+    setResolvingId(complaint.id);
+    
     try {
-      const updates: any = {};
-
-      if (newStatus) updates.status = newStatus;
-      if (newDeadline) updates.deadline = newDeadline;
-
-      // If status is being updated to resolved, delete the complaint
-      if (newStatus === "resolved") {
-        const { error: deleteError } = await supabase
-          .from("complaints")
-          .delete()
-          .eq("id", selectedComplaint.id);
-
-        if (deleteError) throw deleteError;
+      // Send email notification to student
+      const studentEmail = complaint.profiles?.email;
+      const studentName = complaint.profiles?.full_name || "Student";
+      
+      if (studentEmail) {
+        console.log("Sending resolution email to:", studentEmail);
         
-        toast.success("Complaint marked as resolved and deleted");
-        setSelectedComplaint(null);
-        setNewStatus("");
-        setNewDeadline("");
-        setFeedbackText("");
-        fetchComplaints();
-        return;
+        const { data: emailData, error: emailError } = await supabase.functions.invoke("send-resolution-email", {
+          body: {
+            studentEmail,
+            studentName,
+            complaintTitle: complaint.title,
+            complaintCategory: complaint.category,
+          },
+        });
+
+        if (emailError) {
+          console.error("Email error:", emailError);
+          toast.error("Failed to send email notification, but continuing with resolution");
+        } else {
+          console.log("Email sent successfully:", emailData);
+        }
       }
 
-      const { error: updateError } = await supabase
+      // Delete the complaint
+      const { error: deleteError } = await supabase
         .from("complaints")
-        .update(updates)
-        .eq("id", selectedComplaint.id);
+        .delete()
+        .eq("id", complaint.id);
 
-      if (updateError) throw updateError;
+      if (deleteError) throw deleteError;
 
-      // Add feedback if provided
-      if (feedbackText) {
-        const {
-          data: { user },
-        } = await supabase.auth.getUser();
-
-        const { error: feedbackError } = await supabase
-          .from("admin_feedback")
-          .insert({
-            complaint_id: selectedComplaint.id,
-            admin_id: user?.id,
-            feedback: feedbackText,
-          });
-
-        if (feedbackError) throw feedbackError;
-
-        // Also update the feedback field in complaints table for easy access
-        await supabase
-          .from("complaints")
-          .update({ feedback: feedbackText })
-          .eq("id", selectedComplaint.id);
-      }
-
-      toast.success("Complaint updated successfully");
+      toast.success("Complaint resolved successfully!", {
+        description: studentEmail ? "Email notification sent to student" : "Complaint has been removed"
+      });
+      
+      setDialogOpen(false);
       setSelectedComplaint(null);
-      setNewStatus("");
-      setNewDeadline("");
-      setFeedbackText("");
       fetchComplaints();
     } catch (error: any) {
-      toast.error(error.message || "Failed to update complaint");
+      console.error("Error resolving complaint:", error);
+      toast.error(error.message || "Failed to resolve complaint");
+    } finally {
+      setResolvingId(null);
     }
   };
 
@@ -266,7 +243,6 @@ export default function AdminDashboard() {
     try {
       let textToSpeak = text;
       
-      // If language is not Kannada, translate the Kannada text first
       if (language !== "kannada") {
         const targetLang = language === "english" ? "English" : language === "hindi" ? "Hindi" : "Telugu";
         const { data: translateData, error: translateError } = await supabase.functions.invoke("translate-text", {
@@ -277,7 +253,6 @@ export default function AdminDashboard() {
         textToSpeak = translateData.translatedText;
       }
 
-      // Now convert the translated text to speech
       const { data, error } = await supabase.functions.invoke("text-to-speech", {
         body: { text: textToSpeak, language },
       });
@@ -290,19 +265,6 @@ export default function AdminDashboard() {
     } catch (error: any) {
       toast.error("Failed to play audio");
       setPlayingAudio(null);
-    }
-  };
-
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case "submitted":
-        return "bg-yellow-500";
-      case "in_progress":
-        return "bg-blue-500";
-      case "resolved":
-        return "bg-green-500";
-      default:
-        return "bg-gray-500";
     }
   };
 
@@ -349,16 +311,12 @@ export default function AdminDashboard() {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
           <Card className="hover-scale animate-fade-in border-l-4 border-l-primary">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">
-                Total Complaints
-              </CardTitle>
+              <CardTitle className="text-sm font-medium">Total Complaints</CardTitle>
               <BarChart3 className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
               <div className="text-3xl font-bold">{stats.total}</div>
-              <p className="text-xs text-muted-foreground mt-1">
-                All time submissions
-              </p>
+              <p className="text-xs text-muted-foreground mt-1">All time submissions</p>
             </CardContent>
           </Card>
 
@@ -368,29 +326,19 @@ export default function AdminDashboard() {
               <Clock className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-3xl font-bold text-yellow-500">
-                {stats.pending}
-              </div>
-              <p className="text-xs text-muted-foreground mt-1">
-                Awaiting review
-              </p>
+              <div className="text-3xl font-bold text-yellow-500">{stats.pending}</div>
+              <p className="text-xs text-muted-foreground mt-1">Awaiting review</p>
             </CardContent>
           </Card>
 
           <Card className="hover-scale animate-fade-in border-l-4 border-l-blue-500">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">
-                In Progress
-              </CardTitle>
+              <CardTitle className="text-sm font-medium">In Progress</CardTitle>
               <TrendingUp className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-3xl font-bold text-blue-500">
-                {stats.inProgress}
-              </div>
-              <p className="text-xs text-muted-foreground mt-1">
-                Being resolved
-              </p>
+              <div className="text-3xl font-bold text-blue-500">{stats.inProgress}</div>
+              <p className="text-xs text-muted-foreground mt-1">Being resolved</p>
             </CardContent>
           </Card>
 
@@ -400,9 +348,7 @@ export default function AdminDashboard() {
               <CheckCircle className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-3xl font-bold text-green-500">
-                {stats.resolved}
-              </div>
+              <div className="text-3xl font-bold text-green-500">{stats.resolved}</div>
               <p className="text-xs text-muted-foreground mt-1">Completed</p>
             </CardContent>
           </Card>
@@ -415,9 +361,7 @@ export default function AdminDashboard() {
               <Users className="h-5 w-5" />
               All Complaints
             </CardTitle>
-            <CardDescription>
-              Click on any complaint to manage it
-            </CardDescription>
+            <CardDescription>Click on any complaint to view details and resolve</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             {complaints.length === 0 ? (
@@ -429,19 +373,13 @@ export default function AdminDashboard() {
               complaints.map((complaint, index) => (
                 <Dialog
                   key={complaint.id}
+                  open={dialogOpen && selectedComplaint?.id === complaint.id}
                   onOpenChange={(open) => {
+                    setDialogOpen(open);
                     if (open) {
                       setSelectedComplaint(complaint);
-                      setNewStatus(complaint.status);
-                      setNewDeadline(
-                        complaint.deadline
-                          ? format(
-                              new Date(complaint.deadline),
-                              "yyyy-MM-dd'T'HH:mm"
-                            )
-                          : ""
-                      );
-                      setFeedbackText(complaint.feedback || "");
+                    } else {
+                      setSelectedComplaint(null);
                     }
                   }}
                 >
@@ -460,35 +398,24 @@ export default function AdminDashboard() {
                               <Badge variant={getStatusBadge(complaint.status)} className="animate-fade-in transition-all hover:scale-105">
                                 {complaint.status.replace("_", " ")}
                               </Badge>
-                              <Badge variant="outline" className="animate-fade-in transition-all hover:scale-105">{complaint.category}</Badge>
+                              <Badge variant="outline" className="animate-fade-in transition-all hover:scale-105">
+                                {complaint.category}
+                              </Badge>
                               {complaint.deadline && (
-                                <Badge
-                                  variant="secondary"
-                                  className="gap-1"
-                                >
+                                <Badge variant="secondary" className="gap-1">
                                   <Calendar className="h-3 w-3" />
-                                  {format(
-                                    new Date(complaint.deadline),
-                                    "MMM dd, yyyy"
-                                  )}
+                                  {format(new Date(complaint.deadline), "MMM dd, yyyy")}
                                 </Badge>
                               )}
                             </div>
-                            <h3 className="font-semibold text-lg">
-                              {complaint.title}
-                            </h3>
+                            <h3 className="font-semibold text-lg">{complaint.title}</h3>
                             <p className="text-sm text-muted-foreground line-clamp-2">
                               {complaint.description}
                             </p>
                             <div className="flex items-center gap-4 text-xs text-muted-foreground">
                               <span>By: {complaint.profiles?.full_name || complaint.student_id}</span>
                               <span>•</span>
-                              <span>
-                                {format(
-                                  new Date(complaint.created_at),
-                                  "MMM dd, yyyy"
-                                )}
-                              </span>
+                              <span>{format(new Date(complaint.created_at), "MMM dd, yyyy")}</span>
                               {complaint.location && (
                                 <>
                                   <span>•</span>
@@ -560,60 +487,58 @@ export default function AdminDashboard() {
                       </CardContent>
                     </Card>
                   </DialogTrigger>
-                   <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto animate-scale-in">
-                     <DialogHeader className="animate-fade-in">
-                       <DialogTitle>Manage Complaint</DialogTitle>
-                       <DialogDescription>
-                         Update status, set deadline, and provide feedback
-                       </DialogDescription>
-                     </DialogHeader>
+                  <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto animate-scale-in">
+                    <DialogHeader className="animate-fade-in">
+                      <DialogTitle>Complaint Details</DialogTitle>
+                      <DialogDescription>
+                        Review the complaint and mark as resolved when addressed
+                      </DialogDescription>
+                    </DialogHeader>
                     <div className="space-y-6">
                       {/* Complaint Details */}
                       <div className="space-y-4">
                         <div>
-                          <Label className="text-xs text-muted-foreground">
-                            Title
-                          </Label>
+                          <Label className="text-xs text-muted-foreground">Title</Label>
                           <p className="font-semibold">{selectedComplaint?.title}</p>
                         </div>
                         <div>
-                          <Label className="text-xs text-muted-foreground">
-                            Description
-                          </Label>
-                          <p className="text-sm">
-                            {selectedComplaint?.description}
-                          </p>
+                          <Label className="text-xs text-muted-foreground">Description</Label>
+                          <p className="text-sm">{selectedComplaint?.description}</p>
                         </div>
                         <div className="grid grid-cols-2 gap-4">
                           <div>
-                            <Label className="text-xs text-muted-foreground">
-                              Submitted By
-                            </Label>
-                            <p className="text-sm">
-                              {selectedComplaint?.profiles?.full_name || "Student"}
-                            </p>
-                            <p className="text-xs text-muted-foreground">
-                              {selectedComplaint?.profiles?.email || ""}
-                            </p>
+                            <Label className="text-xs text-muted-foreground">Submitted By</Label>
+                            <p className="text-sm">{selectedComplaint?.profiles?.full_name || "Student"}</p>
+                            <p className="text-xs text-muted-foreground">{selectedComplaint?.profiles?.email || ""}</p>
                           </div>
                           <div>
-                            <Label className="text-xs text-muted-foreground">
-                              Submitted On
-                            </Label>
+                            <Label className="text-xs text-muted-foreground">Submitted On</Label>
                             <p className="text-sm">
-                              {selectedComplaint &&
-                                format(
-                                  new Date(selectedComplaint.created_at),
-                                  "PPP"
-                                )}
+                              {selectedComplaint && format(new Date(selectedComplaint.created_at), "PPP")}
                             </p>
                           </div>
                         </div>
+                        <div className="grid grid-cols-2 gap-4">
+                          <div>
+                            <Label className="text-xs text-muted-foreground">Category</Label>
+                            <Badge variant="outline" className="mt-1">{selectedComplaint?.category}</Badge>
+                          </div>
+                          <div>
+                            <Label className="text-xs text-muted-foreground">Status</Label>
+                            <Badge variant={getStatusBadge(selectedComplaint?.status || "")} className="mt-1">
+                              {selectedComplaint?.status.replace("_", " ")}
+                            </Badge>
+                          </div>
+                        </div>
+                        {selectedComplaint?.location && (
+                          <div>
+                            <Label className="text-xs text-muted-foreground">Location</Label>
+                            <p className="text-sm">{selectedComplaint.location}</p>
+                          </div>
+                        )}
                         {selectedComplaint?.image_url && (
                           <div>
-                            <Label className="text-xs text-muted-foreground">
-                              Attached Image
-                            </Label>
+                            <Label className="text-xs text-muted-foreground">Attached Image</Label>
                             <img
                               src={selectedComplaint.image_url}
                               alt="Complaint"
@@ -644,16 +569,12 @@ export default function AdminDashboard() {
                                     />
                                   ))}
                                 </div>
-                                <span className="text-sm font-medium">
-                                  {selectedComplaint?.student_rating}/5
-                                </span>
+                                <span className="text-sm font-medium">{selectedComplaint?.student_rating}/5</span>
                               </div>
                             )}
                             {selectedComplaint?.student_feedback && (
                               <div className="mt-3">
-                                <p className="text-sm whitespace-pre-wrap">
-                                  {selectedComplaint.student_feedback}
-                                </p>
+                                <p className="text-sm whitespace-pre-wrap">{selectedComplaint.student_feedback}</p>
                               </div>
                             )}
                           </div>
@@ -673,57 +594,36 @@ export default function AdminDashboard() {
                         )}
                       </div>
 
-                      {/* Management Controls */}
-                      <div className="space-y-4 pt-4 border-t animate-fade-in">
-                        <div className="space-y-2">
-                          <Label htmlFor="status">Update Status</Label>
-                          <Select value={newStatus} onValueChange={setNewStatus}>
-                            <SelectTrigger className="transition-all hover:border-primary">
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="submitted" className="hover-scale">Submitted</SelectItem>
-                              <SelectItem value="in_review" className="hover-scale">
-                                In Review
-                              </SelectItem>
-                              <SelectItem value="resolved" className="hover-scale">Resolved</SelectItem>
-                            </SelectContent>
-                          </Select>
-                        </div>
-
-                        <div className="space-y-2">
-                          <Label htmlFor="deadline">Set Deadline</Label>
-                          <Input
-                            id="deadline"
-                            type="datetime-local"
-                            value={newDeadline}
-                            onChange={(e) => setNewDeadline(e.target.value)}
-                            className="transition-all focus:scale-[1.01]"
-                          />
-                        </div>
-
-                        <div className="space-y-2">
-                          <Label htmlFor="feedback">
-                            <MessageSquare className="inline h-4 w-4 mr-1" />
-                            Admin Feedback
-                          </Label>
-                          <Textarea
-                            id="feedback"
-                            placeholder="Provide feedback or updates to the student..."
-                            value={feedbackText}
-                            onChange={(e) => setFeedbackText(e.target.value)}
-                            rows={4}
-                            className="transition-all focus:scale-[1.01]"
-                          />
-                        </div>
-
-                        <Button
-                          onClick={handleUpdateComplaint}
-                          className="w-full gap-2 hover-scale transition-all"
-                        >
-                          <CheckCircle className="h-4 w-4" />
-                          Update Complaint
-                        </Button>
+                      {/* Resolve Button */}
+                      <div className="pt-4 border-t">
+                        <AlertDialog>
+                          <AlertDialogTrigger asChild>
+                            <Button
+                              className="w-full gap-2 hover-scale transition-all bg-green-600 hover:bg-green-700"
+                              disabled={resolvingId === selectedComplaint?.id}
+                            >
+                              <CheckCircle className="h-4 w-4" />
+                              {resolvingId === selectedComplaint?.id ? "Resolving..." : "Mark as Resolved"}
+                            </Button>
+                          </AlertDialogTrigger>
+                          <AlertDialogContent>
+                            <AlertDialogHeader>
+                              <AlertDialogTitle>Resolve this complaint?</AlertDialogTitle>
+                              <AlertDialogDescription>
+                                This will mark the complaint as resolved, send an email notification to the student ({selectedComplaint?.profiles?.email}), and remove the complaint from the list.
+                              </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                              <AlertDialogCancel>Cancel</AlertDialogCancel>
+                              <AlertDialogAction
+                                onClick={() => selectedComplaint && handleResolveComplaint(selectedComplaint)}
+                                className="bg-green-600 hover:bg-green-700"
+                              >
+                                Yes, Resolve & Notify
+                              </AlertDialogAction>
+                            </AlertDialogFooter>
+                          </AlertDialogContent>
+                        </AlertDialog>
                       </div>
                     </div>
                   </DialogContent>
