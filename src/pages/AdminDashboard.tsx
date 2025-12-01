@@ -302,8 +302,8 @@ export default function AdminDashboard() {
               Manage and resolve campus grievances
             </p>
           </div>
-          <Button variant="outline" onClick={() => navigate("/dashboard")} className="hover-scale">
-            Back to Portal
+          <Button variant="outline" onClick={() => navigate("/")} className="hover-scale">
+            Back to Home
           </Button>
         </div>
 
