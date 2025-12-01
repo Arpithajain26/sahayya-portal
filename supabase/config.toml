@@ -11,3 +11,6 @@ verify_jwt = false
 
 [functions.transliterate-text]
 verify_jwt = false
+
+[functions.send-resolution-email]
+verify_jwt = false
