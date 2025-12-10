@@ -42,6 +42,8 @@ import {
   AlertCircle,
   Star,
   Volume2,
+  Mic,
+  Play,
 } from "lucide-react";
 import { format } from "date-fns";
 
@@ -56,6 +58,7 @@ interface Complaint {
   feedback: string | null;
   location: string | null;
   image_url: string | null;
+  voice_note_url: string | null;
   student_id: string;
   student_feedback?: string | null;
   student_rating?: number | null;
@@ -407,6 +410,12 @@ export default function AdminDashboard() {
                                   {format(new Date(complaint.deadline), "MMM dd, yyyy")}
                                 </Badge>
                               )}
+                              {complaint.voice_note_url && (
+                                <Badge variant="secondary" className="gap-1 bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300">
+                                  <Mic className="h-3 w-3" />
+                                  Voice Note
+                                </Badge>
+                              )}
                             </div>
                             <h3 className="font-semibold text-lg">{complaint.title}</h3>
                             <p className="text-sm text-muted-foreground line-clamp-2">
@@ -543,6 +552,21 @@ export default function AdminDashboard() {
                               src={selectedComplaint.image_url}
                               alt="Complaint"
                               className="rounded-lg border mt-2 max-h-64 object-cover"
+                            />
+                          </div>
+                        )}
+
+                        {/* Voice Note Section */}
+                        {selectedComplaint?.voice_note_url && (
+                          <div className="bg-purple-50 dark:bg-purple-950/20 p-4 rounded-lg border border-purple-200 dark:border-purple-800 animate-fade-in">
+                            <Label className="text-sm font-semibold text-purple-900 dark:text-purple-100 flex items-center gap-2 mb-3">
+                              <Mic className="h-4 w-4" />
+                              Student Voice Note
+                            </Label>
+                            <audio 
+                              src={selectedComplaint.voice_note_url} 
+                              controls 
+                              className="w-full" 
                             />
                           </div>
                         )}

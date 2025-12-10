@@ -19,8 +19,9 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { toast } from "sonner";
-import { Loader2, Upload, X, Mic, StopCircle, Volume2, Languages, ArrowRight } from "lucide-react";
+import { Loader2, Upload, X, Mic, StopCircle, Volume2, Languages, ArrowRight, Play, Trash2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { Progress } from "@/components/ui/progress";
 
 const CATEGORIES = [
   { value: "infrastructure", label: "Infrastructure" },
@@ -31,6 +32,8 @@ const CATEGORIES = [
   { value: "administration", label: "Administration" },
   { value: "other", label: "Other" },
 ];
+
+const MAX_VOICE_NOTE_DURATION = 180; // 3 minutes in seconds
 
 interface ComplaintFormProps {
   onSuccess: () => void;
@@ -56,6 +59,16 @@ export default function ComplaintForm({ onSuccess }: ComplaintFormProps) {
   const [convertedText, setConvertedText] = useState("");
   const [isConverting, setIsConverting] = useState(false);
   const [showPreview, setShowPreview] = useState(false);
+  
+  // Voice note recording states
+  const [isRecordingVoiceNote, setIsRecordingVoiceNote] = useState(false);
+  const [voiceNoteBlob, setVoiceNoteBlob] = useState<Blob | null>(null);
+  const [voiceNoteUrl, setVoiceNoteUrl] = useState<string | null>(null);
+  const [voiceNoteProgress, setVoiceNoteProgress] = useState(0);
+  const voiceNoteRecorderRef = useRef<MediaRecorder | null>(null);
+  const voiceNoteStreamRef = useRef<MediaStream | null>(null);
+  const voiceNoteTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const voiceNoteChunksRef = useRef<Blob[]>([]);
 
   const TRANSLATION_LANGUAGES = [
     { value: "english", label: "English" },
@@ -424,6 +437,94 @@ export default function ComplaintForm({ onSuccess }: ComplaintFormProps) {
     }
   };
 
+  // Voice note recording functions
+  const startVoiceNoteRecording = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      voiceNoteStreamRef.current = stream;
+      
+      const mimeType = MediaRecorder.isTypeSupported('audio/webm') ? 'audio/webm' : 'audio/mp4';
+      const recorder = new MediaRecorder(stream, { mimeType });
+      voiceNoteChunksRef.current = [];
+
+      recorder.ondataavailable = (e) => {
+        if (e.data && e.data.size > 0) {
+          voiceNoteChunksRef.current.push(e.data);
+        }
+      };
+
+      recorder.onstart = () => {
+        setIsRecordingVoiceNote(true);
+        setVoiceNoteProgress(0);
+        toast.success("Voice note recording started (max 3 minutes)");
+        
+        // Progress timer
+        let elapsed = 0;
+        voiceNoteTimerRef.current = setInterval(() => {
+          elapsed += 1;
+          const progress = (elapsed / MAX_VOICE_NOTE_DURATION) * 100;
+          setVoiceNoteProgress(Math.min(progress, 100));
+          
+          if (elapsed >= MAX_VOICE_NOTE_DURATION) {
+            stopVoiceNoteRecording();
+          }
+        }, 1000);
+      };
+
+      recorder.onstop = () => {
+        setIsRecordingVoiceNote(false);
+        if (voiceNoteTimerRef.current) {
+          clearInterval(voiceNoteTimerRef.current);
+          voiceNoteTimerRef.current = null;
+        }
+
+        const blob = new Blob(voiceNoteChunksRef.current, { type: mimeType });
+        setVoiceNoteBlob(blob);
+        const url = URL.createObjectURL(blob);
+        setVoiceNoteUrl(url);
+        toast.success("Voice note recorded successfully!");
+
+        // Clean up stream
+        if (voiceNoteStreamRef.current) {
+          voiceNoteStreamRef.current.getTracks().forEach(t => t.stop());
+          voiceNoteStreamRef.current = null;
+        }
+      };
+
+      voiceNoteRecorderRef.current = recorder;
+      recorder.start(1000); // Collect data every second
+    } catch (error) {
+      console.error("Error starting voice note recording:", error);
+      toast.error("Failed to start recording. Please check microphone permissions.");
+    }
+  };
+
+  const stopVoiceNoteRecording = () => {
+    if (voiceNoteRecorderRef.current && voiceNoteRecorderRef.current.state !== 'inactive') {
+      voiceNoteRecorderRef.current.stop();
+    }
+    if (voiceNoteTimerRef.current) {
+      clearInterval(voiceNoteTimerRef.current);
+      voiceNoteTimerRef.current = null;
+    }
+  };
+
+  const clearVoiceNote = () => {
+    if (voiceNoteUrl) {
+      URL.revokeObjectURL(voiceNoteUrl);
+    }
+    setVoiceNoteBlob(null);
+    setVoiceNoteUrl(null);
+    setVoiceNoteProgress(0);
+  };
+
+  const playVoiceNote = () => {
+    if (voiceNoteUrl) {
+      const audio = new Audio(voiceNoteUrl);
+      audio.play();
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
@@ -435,6 +536,7 @@ export default function ComplaintForm({ onSuccess }: ComplaintFormProps) {
       if (!user) throw new Error("Not authenticated");
 
       let imageUrl = null;
+      let voiceNoteStorageUrl = null;
 
       // Upload image if present
       if (image) {
@@ -450,6 +552,21 @@ export default function ComplaintForm({ onSuccess }: ComplaintFormProps) {
           data: { publicUrl },
         } = supabase.storage.from("complaint-images").getPublicUrl(fileName);
         imageUrl = publicUrl;
+      }
+
+      // Upload voice note if present
+      if (voiceNoteBlob) {
+        const voiceNoteFileName = `${user.id}/${Date.now()}.webm`;
+        const { error: voiceUploadError } = await supabase.storage
+          .from("voice-notes")
+          .upload(voiceNoteFileName, voiceNoteBlob);
+
+        if (voiceUploadError) throw voiceUploadError;
+
+        const {
+          data: { publicUrl: voicePublicUrl },
+        } = supabase.storage.from("voice-notes").getPublicUrl(voiceNoteFileName);
+        voiceNoteStorageUrl = voicePublicUrl;
       }
 
       // Translate to Kannada
@@ -474,12 +591,13 @@ export default function ComplaintForm({ onSuccess }: ComplaintFormProps) {
           location: location || null,
           image_url: imageUrl,
           kannada_translation: kannadaTranslation,
+          voice_note_url: voiceNoteStorageUrl,
         },
       ]);
 
       if (error) throw error;
 
-      toast.success("Complaint submitted and translated successfully!");
+      toast.success("Complaint submitted successfully!");
 
       // Reset form
       setCategory("");
@@ -487,6 +605,7 @@ export default function ComplaintForm({ onSuccess }: ComplaintFormProps) {
       setDescription("");
       setLocation("");
       clearImage();
+      clearVoiceNote();
       onSuccess();
     } catch (error: any) {
       toast.error(error.message || "Failed to submit complaint");
@@ -769,6 +888,87 @@ export default function ComplaintForm({ onSuccess }: ComplaintFormProps) {
                     PNG, JPG up to 5MB
                   </p>
                 </Label>
+              </div>
+            )}
+          </div>
+
+          {/* Voice Note Section */}
+          <div className="space-y-2">
+            <Label>Voice Note (Optional - up to 3 minutes)</Label>
+            {voiceNoteUrl ? (
+              <div className="border rounded-lg p-4 space-y-3 bg-muted/30">
+                <div className="flex items-center gap-3">
+                  <Badge variant="secondary" className="gap-1">
+                    <Mic className="h-3 w-3" />
+                    Voice Note Recorded
+                  </Badge>
+                  <div className="flex gap-2 ml-auto">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={playVoiceNote}
+                      className="gap-1"
+                    >
+                      <Play className="h-4 w-4" />
+                      Play
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="destructive"
+                      size="sm"
+                      onClick={clearVoiceNote}
+                      className="gap-1"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                      Delete
+                    </Button>
+                  </div>
+                </div>
+                <audio src={voiceNoteUrl} controls className="w-full h-10" />
+              </div>
+            ) : (
+              <div className="border-2 border-dashed rounded-lg p-6 text-center hover:border-primary transition-colors">
+                {isRecordingVoiceNote ? (
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-center gap-2">
+                      <div className="h-3 w-3 bg-red-500 rounded-full animate-pulse" />
+                      <span className="text-sm font-medium">Recording...</span>
+                    </div>
+                    <Progress value={voiceNoteProgress} className="w-full" />
+                    <p className="text-xs text-muted-foreground">
+                      {Math.floor((voiceNoteProgress / 100) * MAX_VOICE_NOTE_DURATION)}s / {MAX_VOICE_NOTE_DURATION}s
+                    </p>
+                    <Button
+                      type="button"
+                      variant="destructive"
+                      onClick={stopVoiceNoteRecording}
+                      className="gap-2"
+                    >
+                      <StopCircle className="h-4 w-4" />
+                      Stop Recording
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    <Mic className="h-8 w-8 mx-auto text-muted-foreground" />
+                    <p className="text-sm text-muted-foreground">
+                      Record a voice note to explain your complaint
+                    </p>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={startVoiceNoteRecording}
+                      className="gap-2"
+                    >
+                      <Mic className="h-4 w-4" />
+                      Start Recording
+                    </Button>
+                    <p className="text-xs text-muted-foreground">
+                      Maximum duration: 3 minutes
+                    </p>
+                  </div>
+                )}
               </div>
             )}
           </div>
