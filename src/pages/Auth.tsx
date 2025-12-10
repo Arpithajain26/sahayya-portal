@@ -81,7 +81,15 @@ export default function Auth() {
         });
 
         if (error) {
-          throw new Error("Invalid admin credentials. Please contact system administrator.");
+          // Show specific error message for invalid credentials
+          if (error.message.includes("Invalid login credentials")) {
+            throw new Error("Invalid email or password. Please check your credentials.");
+          }
+          throw new Error(error.message);
+        }
+
+        if (!data.user) {
+          throw new Error("Login failed. Please try again.");
         }
 
         // Verify admin role in database
@@ -94,7 +102,7 @@ export default function Auth() {
 
         if (!roleData) {
           await supabase.auth.signOut();
-          throw new Error("Access denied. Admin privileges required.");
+          throw new Error("Access denied. This account does not have admin privileges.");
         }
 
         toast.success("Admin logged in successfully!");
