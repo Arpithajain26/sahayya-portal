@@ -113,6 +113,7 @@ export type Database = {
           student_rating: number | null
           title: string
           updated_at: string
+          voice_note_url: string | null
         }
         Insert: {
           assigned_to?: string | null
@@ -135,6 +136,7 @@ export type Database = {
           student_rating?: number | null
           title: string
           updated_at?: string
+          voice_note_url?: string | null
         }
         Update: {
           assigned_to?: string | null
@@ -157,6 +159,7 @@ export type Database = {
           student_rating?: number | null
           title?: string
           updated_at?: string
+          voice_note_url?: string | null
         }
         Relationships: [
           {
