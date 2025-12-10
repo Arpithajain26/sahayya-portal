@@ -1,9 +1,8 @@
-import { useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { useTranslation } from "react-i18next";
 import LanguageSelector from "@/components/ui/LanguageSelector";
+import { ThemeToggle } from "@/components/ui/ThemeToggle";
 import {
   ArrowRight,
   Shield,
@@ -45,6 +44,7 @@ export default function Index() {
               </span>
             </div>
             <div className="flex items-center gap-4 animate-fade-in">
+              <ThemeToggle />
               <LanguageSelector />
               <Button
                 onClick={() => navigate("/auth")}
