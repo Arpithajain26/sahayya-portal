@@ -31,6 +31,7 @@ export default function Auth() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [fullName, setFullName] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
     const checkUserAndRedirect = async (userId: string) => {
@@ -49,28 +50,29 @@ export default function Auth() {
       }
     };
 
-    // Check if user is already logged in
+    // Check if user is already logged in (only on initial load, not during form submission)
     supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session?.user) {
+      if (session?.user && !isSubmitting) {
         checkUserAndRedirect(session.user.id);
       }
     });
 
-    // Listen for auth changes
+    // Listen for auth changes - skip during form submission to let handleSubmit control the flow
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_event, session) => {
-      if (session?.user) {
+      if (session?.user && !isSubmitting) {
         checkUserAndRedirect(session.user.id);
       }
     });
 
     return () => subscription.unsubscribe();
-  }, [navigate]);
+  }, [navigate, isSubmitting]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
+    setIsSubmitting(true);
 
     try {
       // Admin login
@@ -106,6 +108,7 @@ export default function Auth() {
         }
 
         toast.success("Admin logged in successfully!");
+        navigate("/admin");
         return;
       }
 
@@ -140,6 +143,7 @@ export default function Auth() {
           }
 
           toast.success("Account created successfully!");
+          navigate("/dashboard");
         }
       } else {
         // Student login
@@ -150,9 +154,11 @@ export default function Auth() {
 
         if (error) throw error;
         toast.success("Logged in successfully!");
+        navigate("/dashboard");
       }
     } catch (error: any) {
       toast.error(error.message || "Authentication failed");
+      setIsSubmitting(false);
     } finally {
       setLoading(false);
     }
