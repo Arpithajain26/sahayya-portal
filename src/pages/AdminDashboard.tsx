@@ -120,25 +120,26 @@ export default function AdminDashboard() {
   const checkAdminAccess = async () => {
     try {
       const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      if (!user) {
+        data: { session },
+      } = await supabase.auth.getSession();
+      
+      if (!session?.user) {
         setLoading(false);
-        navigate("/auth");
+        navigate("/auth", { replace: true });
         return;
       }
 
       const { data: roleData, error: roleError } = await supabase
         .from("user_roles")
         .select("role")
-        .eq("user_id", user.id)
+        .eq("user_id", session.user.id)
         .eq("role", "admin")
         .maybeSingle();
 
       if (roleError || !roleData) {
         toast.error("Access denied. Admin privileges required.");
         setLoading(false);
-        navigate("/dashboard");
+        navigate("/auth", { replace: true });
         return;
       }
 
@@ -146,7 +147,7 @@ export default function AdminDashboard() {
       fetchComplaints();
     } catch (error) {
       console.error("Error checking admin access:", error);
-      navigate("/auth");
+      navigate("/auth", { replace: true });
     }
   };
 

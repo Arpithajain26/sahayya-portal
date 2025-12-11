@@ -158,9 +158,9 @@ export default function Auth() {
       }
     } catch (error: any) {
       toast.error(error.message || "Authentication failed");
-      setIsSubmitting(false);
     } finally {
       setLoading(false);
+      setIsSubmitting(false);
     }
   };
 
