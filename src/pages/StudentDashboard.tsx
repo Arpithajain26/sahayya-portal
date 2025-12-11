@@ -21,8 +21,49 @@ export default function StudentDashboard() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
 
   useEffect(() => {
+    let isMounted = true;
+    
+    const checkAuth = async () => {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        
+        if (!session?.user) {
+          if (isMounted) {
+            navigate("/auth", { replace: true });
+          }
+          return;
+        }
+        
+        if (isMounted) {
+          setUser(session.user);
+
+          // Check if user is admin
+          const { data: roleData } = await supabase
+            .from("user_roles")
+            .select("role")
+            .eq("user_id", session.user.id)
+            .eq("role", "admin")
+            .maybeSingle();
+
+          if (isMounted) {
+            setIsAdmin(!!roleData);
+            setIsAuthenticated(true);
+          }
+        }
+      } catch (error) {
+        console.error("Auth check error:", error);
+        if (isMounted) {
+          navigate("/auth", { replace: true });
+        }
+      }
+    };
+
     checkAuth();
-  }, []);
+    
+    return () => {
+      isMounted = false;
+    };
+  }, [navigate]);
 
   useEffect(() => {
     if (isAuthenticated) {
@@ -30,34 +71,6 @@ export default function StudentDashboard() {
     }
   }, [isAuthenticated]);
 
-  const checkAuth = async () => {
-    try {
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
-      
-      if (!session?.user) {
-        navigate("/auth", { replace: true });
-        return;
-      }
-      
-      setUser(session.user);
-
-      // Check if user is admin
-      const { data: roleData } = await supabase
-        .from("user_roles")
-        .select("role")
-        .eq("user_id", session.user.id)
-        .eq("role", "admin")
-        .maybeSingle();
-
-      setIsAdmin(!!roleData);
-      setIsAuthenticated(true);
-    } catch (error) {
-      console.error("Auth check error:", error);
-      navigate("/auth", { replace: true });
-    }
-  };
 
   const fetchComplaints = async () => {
     setLoading(true);

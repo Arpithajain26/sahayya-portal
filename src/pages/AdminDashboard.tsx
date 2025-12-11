@@ -72,6 +72,7 @@ interface Complaint {
 export default function AdminDashboard() {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [complaints, setComplaints] = useState<Complaint[]>([]);
   const [stats, setStats] = useState({
     total: 0,
@@ -86,8 +87,60 @@ export default function AdminDashboard() {
   const [dialogOpen, setDialogOpen] = useState(false);
 
   useEffect(() => {
+    let isMounted = true;
+    
+    const checkAdminAccess = async () => {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        
+        if (!session?.user) {
+          if (isMounted) {
+            navigate("/auth", { replace: true });
+          }
+          return;
+        }
+
+        const { data: roleData, error: roleError } = await supabase
+          .from("user_roles")
+          .select("role")
+          .eq("user_id", session.user.id)
+          .eq("role", "admin")
+          .maybeSingle();
+
+        if (roleError || !roleData) {
+          if (isMounted) {
+            toast.error("Access denied. Admin privileges required.");
+            navigate("/auth", { replace: true });
+          }
+          return;
+        }
+
+        if (isMounted) {
+          setIsAuthenticated(true);
+          setIsAdmin(true);
+          setLoading(false);
+        }
+      } catch (error) {
+        console.error("Error checking admin access:", error);
+        if (isMounted) {
+          navigate("/auth", { replace: true });
+        }
+      }
+    };
+
     checkAdminAccess();
-  }, []);
+    
+    return () => {
+      isMounted = false;
+    };
+  }, [navigate]);
+
+  // Fetch complaints after authentication is confirmed
+  useEffect(() => {
+    if (isAuthenticated && isAdmin) {
+      fetchComplaints();
+    }
+  }, [isAuthenticated, isAdmin]);
 
   // Real-time subscription for new complaints
   useEffect(() => {
@@ -116,40 +169,6 @@ export default function AdminDashboard() {
       supabase.removeChannel(channel);
     };
   }, [isAdmin]);
-
-  const checkAdminAccess = async () => {
-    try {
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
-      
-      if (!session?.user) {
-        setLoading(false);
-        navigate("/auth", { replace: true });
-        return;
-      }
-
-      const { data: roleData, error: roleError } = await supabase
-        .from("user_roles")
-        .select("role")
-        .eq("user_id", session.user.id)
-        .eq("role", "admin")
-        .maybeSingle();
-
-      if (roleError || !roleData) {
-        toast.error("Access denied. Admin privileges required.");
-        setLoading(false);
-        navigate("/auth", { replace: true });
-        return;
-      }
-
-      setIsAdmin(true);
-      fetchComplaints();
-    } catch (error) {
-      console.error("Error checking admin access:", error);
-      navigate("/auth", { replace: true });
-    }
-  };
 
   const fetchComplaints = async () => {
     try {
@@ -281,16 +300,12 @@ export default function AdminDashboard() {
     return colors[status] || "secondary";
   };
 
-  if (loading) {
+  if (loading || !isAuthenticated || !isAdmin) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
       </div>
     );
-  }
-
-  if (!isAdmin) {
-    return null;
   }
 
   return (
