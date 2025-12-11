@@ -18,30 +18,44 @@ export default function StudentDashboard() {
   const [showForm, setShowForm] = useState(false);
   const [selectedComplaint, setSelectedComplaint] = useState<any>(null);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
 
   useEffect(() => {
     checkAuth();
-    fetchComplaints();
   }, []);
 
+  useEffect(() => {
+    if (isAuthenticated) {
+      fetchComplaints();
+    }
+  }, [isAuthenticated]);
+
   const checkAuth = async () => {
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-    if (!user) {
-      navigate("/auth");
-    } else {
-      setUser(user);
+    try {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      
+      if (!session?.user) {
+        navigate("/auth", { replace: true });
+        return;
+      }
+      
+      setUser(session.user);
 
       // Check if user is admin
       const { data: roleData } = await supabase
         .from("user_roles")
         .select("role")
-        .eq("user_id", user.id)
+        .eq("user_id", session.user.id)
         .eq("role", "admin")
         .maybeSingle();
 
       setIsAdmin(!!roleData);
+      setIsAuthenticated(true);
+    } catch (error) {
+      console.error("Auth check error:", error);
+      navigate("/auth", { replace: true });
     }
   };
 
@@ -100,6 +114,14 @@ export default function StudentDashboard() {
       toast.error(error.message || "Failed to resubmit complaint");
     }
   };
+
+  if (!isAuthenticated) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gradient-hero">
