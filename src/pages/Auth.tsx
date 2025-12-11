@@ -38,42 +38,18 @@ export default function Auth() {
   const [resendCooldown, setResendCooldown] = useState(0);
   const [pendingUserId, setPendingUserId] = useState<string | null>(null);
 
+  // Handle password recovery event only
   useEffect(() => {
-    const checkUserAndRedirect = async (userId: string) => {
-      const { data: roleData } = await supabase
-        .from("user_roles")
-        .select("role")
-        .eq("user_id", userId)
-        .eq("role", "admin")
-        .maybeSingle();
-
-      if (roleData) {
-        navigate("/admin");
-      } else {
-        navigate("/dashboard");
-      }
-    };
-
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session?.user && !isSubmitting && mode !== "verify-otp" && mode !== "reset-password") {
-        checkUserAndRedirect(session.user.id);
-      }
-    });
-
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((event, session) => {
       if (event === "PASSWORD_RECOVERY") {
         setMode("reset-password");
-        return;
-      }
-      if (session?.user && !isSubmitting && mode !== "verify-otp" && mode !== "reset-password") {
-        checkUserAndRedirect(session.user.id);
       }
     });
 
     return () => subscription.unsubscribe();
-  }, [navigate, isSubmitting, mode]);
+  }, []);
 
   // Resend cooldown timer
   useEffect(() => {
