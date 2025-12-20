@@ -46,6 +46,7 @@ import {
   Play,
 } from "lucide-react";
 import { format } from "date-fns";
+import { TwoFactorSetup } from "@/components/auth/TwoFactorSetup";
 
 interface Complaint {
   id: string;
@@ -672,6 +673,9 @@ export default function AdminDashboard() {
             )}
           </CardContent>
         </Card>
+
+        {/* 2FA Security Settings */}
+        <TwoFactorSetup />
       </div>
     </div>
   );
