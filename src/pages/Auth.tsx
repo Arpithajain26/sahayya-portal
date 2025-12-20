@@ -12,7 +12,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { toast } from "sonner";
-import { Loader2, Shield, UserCheck, ArrowLeft, Mail, RefreshCw } from "lucide-react";
+import { Loader2, Shield, UserCheck, ArrowLeft, Mail, RefreshCw, Lock } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import heroImage from "@/assets/hero-campus.jpg";
 import {
@@ -22,6 +22,44 @@ import {
 } from "@/components/ui/input-otp";
 
 type AuthMode = "login" | "signup" | "verify-otp" | "forgot-password" | "reset-password";
+
+interface LoginAttemptData {
+  attempts: number;
+  lockoutUntil: number | null;
+  lastAttempt: number;
+}
+
+const MAX_LOGIN_ATTEMPTS = 5;
+const LOCKOUT_DURATION_MS = 15 * 60 * 1000; // 15 minutes
+const ATTEMPT_WINDOW_MS = 30 * 60 * 1000; // 30 minutes window for attempt tracking
+
+const getLoginAttempts = (email: string): LoginAttemptData => {
+  const key = `login_attempts_${email.toLowerCase()}`;
+  const data = localStorage.getItem(key);
+  if (!data) {
+    return { attempts: 0, lockoutUntil: null, lastAttempt: 0 };
+  }
+  try {
+    const parsed = JSON.parse(data);
+    // Reset attempts if window has passed
+    if (Date.now() - parsed.lastAttempt > ATTEMPT_WINDOW_MS) {
+      return { attempts: 0, lockoutUntil: null, lastAttempt: 0 };
+    }
+    return parsed;
+  } catch {
+    return { attempts: 0, lockoutUntil: null, lastAttempt: 0 };
+  }
+};
+
+const setLoginAttempts = (email: string, data: LoginAttemptData) => {
+  const key = `login_attempts_${email.toLowerCase()}`;
+  localStorage.setItem(key, JSON.stringify(data));
+};
+
+const clearLoginAttempts = (email: string) => {
+  const key = `login_attempts_${email.toLowerCase()}`;
+  localStorage.removeItem(key);
+};
 
 export default function Auth() {
   const navigate = useNavigate();
@@ -37,6 +75,7 @@ export default function Auth() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [resendCooldown, setResendCooldown] = useState(0);
   const [pendingUserId, setPendingUserId] = useState<string | null>(null);
+  const [lockoutRemaining, setLockoutRemaining] = useState(0);
 
   // Handle password recovery event only
   useEffect(() => {
@@ -51,16 +90,71 @@ export default function Auth() {
     return () => subscription.unsubscribe();
   }, []);
 
-  // Resend cooldown timer
+  // Lockout timer
   useEffect(() => {
-    if (resendCooldown > 0) {
-      const timer = setTimeout(() => setResendCooldown(resendCooldown - 1), 1000);
+    if (lockoutRemaining > 0) {
+      const timer = setTimeout(() => setLockoutRemaining(lockoutRemaining - 1), 1000);
       return () => clearTimeout(timer);
     }
-  }, [resendCooldown]);
+  }, [lockoutRemaining]);
+
+  // Check lockout status when email changes
+  useEffect(() => {
+    if (email && mode === "login") {
+      const attemptData = getLoginAttempts(email);
+      if (attemptData.lockoutUntil && attemptData.lockoutUntil > Date.now()) {
+        const remaining = Math.ceil((attemptData.lockoutUntil - Date.now()) / 1000);
+        setLockoutRemaining(remaining);
+      } else {
+        setLockoutRemaining(0);
+      }
+    }
+  }, [email, mode]);
+
+  const checkAndUpdateAttempts = (email: string, isFailure: boolean): { isLocked: boolean; attemptsLeft: number } => {
+    const attemptData = getLoginAttempts(email);
+    
+    // Check if currently locked out
+    if (attemptData.lockoutUntil && attemptData.lockoutUntil > Date.now()) {
+      const remaining = Math.ceil((attemptData.lockoutUntil - Date.now()) / 1000);
+      setLockoutRemaining(remaining);
+      return { isLocked: true, attemptsLeft: 0 };
+    }
+
+    if (isFailure) {
+      const newAttempts = attemptData.attempts + 1;
+      
+      if (newAttempts >= MAX_LOGIN_ATTEMPTS) {
+        const lockoutUntil = Date.now() + LOCKOUT_DURATION_MS;
+        setLoginAttempts(email, { attempts: newAttempts, lockoutUntil, lastAttempt: Date.now() });
+        setLockoutRemaining(Math.ceil(LOCKOUT_DURATION_MS / 1000));
+        return { isLocked: true, attemptsLeft: 0 };
+      }
+      
+      setLoginAttempts(email, { attempts: newAttempts, lockoutUntil: null, lastAttempt: Date.now() });
+      return { isLocked: false, attemptsLeft: MAX_LOGIN_ATTEMPTS - newAttempts };
+    }
+
+    // Success - clear attempts
+    clearLoginAttempts(email);
+    setLockoutRemaining(0);
+    return { isLocked: false, attemptsLeft: MAX_LOGIN_ATTEMPTS };
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    // Check lockout for login attempts
+    if (mode === "login" || loginType === "admin") {
+      const attemptData = getLoginAttempts(email);
+      if (attemptData.lockoutUntil && attemptData.lockoutUntil > Date.now()) {
+        const remaining = Math.ceil((attemptData.lockoutUntil - Date.now()) / 1000);
+        setLockoutRemaining(remaining);
+        toast.error(`Account temporarily locked. Try again in ${Math.ceil(remaining / 60)} minutes.`);
+        return;
+      }
+    }
+    
     setLoading(true);
     setIsSubmitting(true);
 
@@ -73,13 +167,18 @@ export default function Auth() {
         });
 
         if (error) {
+          const result = checkAndUpdateAttempts(email, true);
+          if (result.isLocked) {
+            throw new Error("Too many failed login attempts. Account locked for 15 minutes.");
+          }
           if (error.message.includes("Invalid login credentials")) {
-            throw new Error("Invalid email or password. Please check your credentials.");
+            throw new Error(`Invalid email or password. ${result.attemptsLeft} attempts remaining.`);
           }
           throw new Error(error.message);
         }
 
         if (!data.user) {
+          checkAndUpdateAttempts(email, true);
           throw new Error("Login failed. Please try again.");
         }
 
@@ -92,9 +191,12 @@ export default function Auth() {
 
         if (!roleData) {
           await supabase.auth.signOut();
+          checkAndUpdateAttempts(email, true);
           throw new Error("Access denied. This account does not have admin privileges.");
         }
 
+        // Success - clear attempts
+        checkAndUpdateAttempts(email, false);
         toast.success("Admin logged in successfully!");
         navigate("/admin");
         return;
@@ -131,14 +233,24 @@ export default function Auth() {
         });
 
         if (error) {
+          const result = checkAndUpdateAttempts(email, true);
+          if (result.isLocked) {
+            throw new Error("Too many failed login attempts. Account locked for 15 minutes.");
+          }
           if (error.message.includes("Email not confirmed")) {
             setPendingUserId(data?.user?.id || null);
             setMode("verify-otp");
             toast.info("Please verify your email first.");
             return;
           }
+          if (error.message.includes("Invalid login credentials")) {
+            throw new Error(`Invalid email or password. ${result.attemptsLeft} attempts remaining.`);
+          }
           throw error;
         }
+        
+        // Success - clear attempts
+        checkAndUpdateAttempts(email, false);
         toast.success("Logged in successfully!");
         navigate("/dashboard");
       }
@@ -491,6 +603,19 @@ export default function Auth() {
             </Button>
           </div>
 
+          {/* Lockout Warning */}
+          {lockoutRemaining > 0 && mode === "login" && (
+            <div className="flex items-center gap-3 p-4 rounded-lg bg-destructive/10 border border-destructive/20 text-destructive mb-4">
+              <Lock className="h-5 w-5 flex-shrink-0" />
+              <div>
+                <p className="font-medium text-sm">Account temporarily locked</p>
+                <p className="text-xs opacity-80">
+                  Too many failed attempts. Try again in {Math.floor(lockoutRemaining / 60)}:{String(lockoutRemaining % 60).padStart(2, '0')}
+                </p>
+              </div>
+            </div>
+          )}
+
           <form onSubmit={handleSubmit} className="space-y-4">
             {mode === "signup" && loginType === "student" && (
               <div className="space-y-2">
@@ -543,11 +668,16 @@ export default function Auth() {
               />
             </div>
 
-            <Button type="submit" className="w-full" disabled={loading}>
+            <Button type="submit" className="w-full" disabled={loading || (lockoutRemaining > 0 && mode === "login")}>
               {loading ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                   {mode === "login" ? "Signing in..." : "Creating account..."}
+                </>
+              ) : lockoutRemaining > 0 && mode === "login" ? (
+                <>
+                  <Lock className="mr-2 h-4 w-4" />
+                  Locked
                 </>
               ) : mode === "login" ? (
                 "Sign In"
