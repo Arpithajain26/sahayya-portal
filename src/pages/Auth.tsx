@@ -21,8 +21,9 @@ import {
   InputOTPSlot,
 } from "@/components/ui/input-otp";
 import { PasswordStrengthIndicator } from "@/components/auth/PasswordStrengthIndicator";
+import { TwoFactorVerify } from "@/components/auth/TwoFactorVerify";
 
-type AuthMode = "login" | "signup" | "verify-otp" | "forgot-password" | "reset-password";
+type AuthMode = "login" | "signup" | "verify-otp" | "forgot-password" | "reset-password" | "verify-2fa";
 
 interface LoginAttemptData {
   attempts: number;
@@ -77,6 +78,7 @@ export default function Auth() {
   const [resendCooldown, setResendCooldown] = useState(0);
   const [pendingUserId, setPendingUserId] = useState<string | null>(null);
   const [lockoutRemaining, setLockoutRemaining] = useState(0);
+  const [mfaFactorId, setMfaFactorId] = useState<string | null>(null);
 
   // Handle password recovery event only
   useEffect(() => {
@@ -196,7 +198,22 @@ export default function Auth() {
           throw new Error("Access denied. This account does not have admin privileges.");
         }
 
-        // Success - clear attempts
+        // Check if MFA is enabled for this admin
+        const { data: mfaData, error: mfaError } = await supabase.auth.mfa.listFactors();
+        
+        if (!mfaError && mfaData?.totp?.length > 0) {
+          const verifiedFactor = mfaData.totp.find(f => f.status === 'verified');
+          if (verifiedFactor) {
+            // MFA is enabled, show 2FA verification screen
+            setMfaFactorId(verifiedFactor.id);
+            setMode("verify-2fa");
+            setLoading(false);
+            setIsSubmitting(false);
+            return;
+          }
+        }
+
+        // No MFA enabled, proceed with login
         checkAndUpdateAttempts(email, false);
         toast.success("Admin logged in successfully!");
         navigate("/admin");
@@ -372,7 +389,27 @@ export default function Auth() {
     }
   };
 
+  const handle2FAVerified = () => {
+    checkAndUpdateAttempts(email, false);
+    toast.success("Admin logged in successfully!");
+    navigate("/admin");
+  };
+
   const renderAuthForm = () => {
+    // 2FA Verification Form
+    if (mode === "verify-2fa" && mfaFactorId) {
+      return (
+        <TwoFactorVerify
+          factorId={mfaFactorId}
+          onVerified={handle2FAVerified}
+          onBack={() => {
+            setMode("login");
+            setMfaFactorId(null);
+            supabase.auth.signOut();
+          }}
+        />
+      );
+    }
     // OTP Verification Form
     if (mode === "verify-otp") {
       return (
