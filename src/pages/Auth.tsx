@@ -20,6 +20,7 @@ import {
   InputOTPGroup,
   InputOTPSlot,
 } from "@/components/ui/input-otp";
+import { PasswordStrengthIndicator } from "@/components/auth/PasswordStrengthIndicator";
 
 type AuthMode = "login" | "signup" | "verify-otp" | "forgot-password" | "reset-password";
 
@@ -666,6 +667,9 @@ export default function Auth() {
                 required
                 minLength={6}
               />
+              {mode === "signup" && loginType === "student" && (
+                <PasswordStrengthIndicator password={password} />
+              )}
             </div>
 
             <Button type="submit" className="w-full" disabled={loading || (lockoutRemaining > 0 && mode === "login")}>
