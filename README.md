@@ -46,7 +46,7 @@ Follow these steps to run the project locally:
 
 1. Clone the repository:
    ```bash
-   git clone <your-repo-url>
+   git clone https://github.com/Arpithajain26/sahayya-portal.git
 
 Navigate to the project folder:
 
