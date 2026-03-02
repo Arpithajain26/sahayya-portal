@@ -222,13 +222,10 @@ export default function Auth() {
 
       // Student signup
       if (mode === "signup") {
-        const redirectUrl = `${window.location.origin}/auth`;
-
         const { data, error } = await supabase.auth.signUp({
           email,
           password,
           options: {
-            emailRedirectTo: redirectUrl,
             data: {
               full_name: fullName,
             },
@@ -238,10 +235,20 @@ export default function Auth() {
         if (error) throw error;
 
         if (data.user) {
-          setPendingUserId(data.user.id);
-          setMode("verify-otp");
-          setResendCooldown(60);
-          toast.success("Verification code sent to your email!");
+          // Assign student role
+          const { error: roleError } = await supabase
+            .from("user_roles")
+            .insert({
+              user_id: data.user.id,
+              role: "student",
+            });
+
+          if (roleError) {
+            console.error("Role assignment error:", roleError);
+          }
+
+          toast.success("Account created successfully! Welcome!");
+          navigate("/dashboard");
         }
       } else {
         // Student login
