@@ -291,7 +291,20 @@ export default function Auth() {
         type: "signup",
       });
 
-      if (error) throw error;
+      if (error) {
+        // Handle expired or invalid token specifically
+        if (error.message.toLowerCase().includes("expired") || error.message.toLowerCase().includes("token")) {
+          toast.error("Verification code has expired. Please request a new one.", {
+            action: {
+              label: "Resend Code",
+              onClick: () => handleResendOtp(),
+            },
+          });
+          setOtp("");
+          return;
+        }
+        throw error;
+      }
 
       if (data.user) {
         // Assign student role
@@ -311,6 +324,7 @@ export default function Auth() {
       }
     } catch (error: any) {
       toast.error(error.message || "Invalid verification code");
+      setOtp("");
     } finally {
       setLoading(false);
     }
@@ -463,6 +477,10 @@ export default function Auth() {
                   "Verify Email"
                 )}
               </Button>
+
+              <p className="text-xs text-center text-muted-foreground">
+                The verification code expires in 60 minutes. If it has expired, request a new one below.
+              </p>
 
               <div className="text-center">
                 <Button
