@@ -95,13 +95,3 @@ You can also open an issue for feature requests or bugs.
 📜 License
 
 This project is licensed under the MIT License.
-
-🖼 Screenshot
-
-
----
-
-If you want, I can also:
-- Add **badges** (Vite, React, License, etc.)
-- Customize it for **college projects / VTU format**
-- Write a **short project description** for resumes or reports
