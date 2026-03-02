@@ -1,77 +1,107 @@
-Sahayya Portal – Digital Complaint Submission System
+# Sahayya Portal – Digital Complaint Submission System
 
-A modern web application designed to streamline complaint submission, tracking, and resolution.
-The platform provides a simple and intuitive interface for users to submit issues and for admins to manage and review complaints.
+Sahayya Portal is a modern web-based application designed to simplify the process of complaint submission, tracking, and resolution.  
+It offers an intuitive interface for users to submit complaints and a structured dashboard for administrators to review and manage them efficiently.
 
-🚀 Features
+---
 
-Simple and clean UI for complaint submission
+## 🚀 Features
 
-Real-time form validation
+- Simple and clean user interface for complaint submission  
+- Real-time form validation for accurate data entry  
+- Fully responsive design (mobile, tablet, and desktop)  
+- Admin-side complaint viewing and management  
+- Secure and structured data handling  
+- Fast performance with an optimized frontend workflow  
 
-Responsive design for all devices
+---
 
-Admin-side complaint viewing and management
+## 🛠 Tech Stack
 
-Secure and structured data handling
+- React  
+- TypeScript  
+- Vite  
+- Tailwind CSS  
+- shadcn/ui components  
 
-Fast performance and optimized frontend workflow
+---
 
-🛠 Tech Stack
+## 📌 Folder Structure
 
-React
 
-TypeScript
-
-Vite
-
-Tailwind CSS
-
-shadcn/ui components
-
-📌 Folder Structure
 src/
- ├── components/
- ├── pages/
- ├── hooks/
- ├── services/
- ├── styles/
- └── App.tsx
+├── components/ # Reusable UI components
+├── pages/ # Application pages
+├── hooks/ # Custom React hooks
+├── services/ # API and service logic
+├── styles/ # Global and custom styles
+└── App.tsx # Root component
 
-🔧 Installation & Setup
 
-Clone the repo and install dependencies:
+---
 
-git clone <your-repo-url>
+## 🔧 Installation & Setup
+
+Follow these steps to run the project locally:
+
+1. Clone the repository:
+   ```bash
+   git clone <your-repo-url>
+
+Navigate to the project folder:
+
 cd <your-project-folder>
+
+Install dependencies:
+
 npm install
+
+Start the development server:
+
 npm run dev
 
-
-The app will run on:
+The application will be available at:
 
 http://localhost:5173/
-
 📦 Build for Production
+
+To create an optimized production build:
+
 npm run build
 
-
-The optimized build will be available in the dist/ folder.
+The production-ready files will be generated inside the dist/ folder.
 
 📄 Usage
 
-Users can submit complaints with required details
+Users can submit complaints by providing the required details
 
-The system stores submissions for review
+The system stores complaint submissions securely
 
-Admins can view all complaints and their status
+Admins can view all complaints and track their status
 
 🤝 Contributing
 
-Contributions, issues, and feature requests are always welcome.
-Feel free to create a pull request or open an issue.
+Contributions are welcome!
+If you have suggestions, improvements, or bug fixes:
+
+Fork the repository
+
+Create a new branch
+
+Submit a pull request
+
+You can also open an issue for feature requests or bugs.
 
 📜 License
 
 This project is licensed under the MIT License.
-<img width="1920" height="1020" alt="Screenshot 2025-11-16 141542" src="https://github.com/user-attachments/assets/1a910083-b5ce-4937-b2cc-ae1334e33b80" />
+
+🖼 Screenshot
+
+
+---
+
+If you want, I can also:
+- Add **badges** (Vite, React, License, etc.)
+- Customize it for **college projects / VTU format**
+- Write a **short project description** for resumes or reports
